@@ -240,6 +240,27 @@ public class ViewPager extends ViewGroup {
 
     private int mScrollState = SCROLL_STATE_IDLE;
 
+    /*
+     * Adapter wrapper functions, used for simple, human readable RTL support.
+     */
+    public float adapterGetPageWidth(int position) {
+        return mAdapter.getPageWidth(mAdapter.getCount() - 1 - position);
+    }
+    public Object adapterInstantiateItem(ViewGroup container, int position) {
+        return mAdapter.instantiateItem(container, mAdapter.getCount() - 1 - position);
+    }
+    public void adapterDestroyItem(ViewGroup container, int position, Object object) {
+        mAdapter.destroyItem(container, mAdapter.getCount() - 1 - position, object);
+    }
+    public void adapterSetPrimaryItem(ViewGroup container, int position, Object object) {
+        mAdapter.setPrimaryItem(container, mAdapter.getCount() - 1 - position, object);
+    }
+    public void listenerOnPageScrolled(OnPageChangeListener listener, int position, float positionOffset, int positionOffsetPixels){
+        listener.onPageScrolled(mAdapter.getCount() - 1 - position, positionOffset, positionOffsetPixels);
+    }
+    public void listenerOnPageSelected(OnPageChangeListener listener, int position){
+        listener.onPageSelected(mAdapter.getCount() - 1 - position);
+    }
     /**
      * Callback interface for responding to changing state of the selected page.
      */
@@ -405,7 +426,7 @@ public class ViewPager extends ViewGroup {
             mAdapter.startUpdate(this);
             for (int i = 0; i < mItems.size(); i++) {
                 final ItemInfo ii = mItems.get(i);
-                mAdapter.destroyItem(this, ii.position, ii.object);
+                adapterDestroyItem(this, ii.position, ii.object);
             }
             mAdapter.finishUpdate(this);
             mItems.clear();
@@ -536,17 +557,17 @@ public class ViewPager extends ViewGroup {
         if (smoothScroll) {
             smoothScrollTo(destX, 0, velocity);
             if (dispatchSelected && mOnPageChangeListener != null) {
-                mOnPageChangeListener.onPageSelected(item);
+                listenerOnPageSelected(mOnPageChangeListener, item);
             }
             if (dispatchSelected && mInternalPageChangeListener != null) {
-                mInternalPageChangeListener.onPageSelected(item);
+                listenerOnPageSelected(mInternalPageChangeListener, item);
             }
         } else {
             if (dispatchSelected && mOnPageChangeListener != null) {
-                mOnPageChangeListener.onPageSelected(item);
+                listenerOnPageSelected(mOnPageChangeListener, item);
             }
             if (dispatchSelected && mInternalPageChangeListener != null) {
-                mInternalPageChangeListener.onPageSelected(item);
+                listenerOnPageSelected(mInternalPageChangeListener, item);
             }
             completeScroll(false);
             scrollTo(destX, 0);
@@ -785,7 +806,7 @@ public class ViewPager extends ViewGroup {
         if (velocity > 0) {
             duration = 4 * Math.round(1000 * Math.abs(distance / velocity));
         } else {
-            final float pageWidth = width * mAdapter.getPageWidth(mCurItem);
+            final float pageWidth = width * adapterGetPageWidth(mCurItem);
             final float pageDelta = (float) Math.abs(dx) / (pageWidth + mPageMargin);
             duration = (int) ((pageDelta + 1) * 100);
         }
@@ -798,8 +819,8 @@ public class ViewPager extends ViewGroup {
     ItemInfo addNewItem(int position, int index) {
         ItemInfo ii = new ItemInfo();
         ii.position = position;
-        ii.object = mAdapter.instantiateItem(this, position);
-        ii.widthFactor = mAdapter.getPageWidth(position);
+        ii.object = adapterInstantiateItem(this, position);
+        ii.widthFactor = adapterGetPageWidth(position);
         if (index < 0 || index >= mItems.size()) {
             mItems.add(ii);
         } else {
@@ -833,7 +854,7 @@ public class ViewPager extends ViewGroup {
                     isUpdating = true;
                 }
 
-                mAdapter.destroyItem(this, ii.position, ii.object);
+                adapterDestroyItem(this, ii.position, ii.object);
                 needPopulate = true;
 
                 if (mCurItem == ii.position) {
@@ -945,7 +966,7 @@ public class ViewPager extends ViewGroup {
                     }
                     if (pos == ii.position && !ii.scrolling) {
                         mItems.remove(itemIndex);
-                        mAdapter.destroyItem(this, pos, ii.object);
+                        adapterDestroyItem(this, pos, ii.object);
                         if (DEBUG) {
                             Log.i(TAG, "populate() - destroyItem() with pos: " + pos +
                                     " view: " + ((View) ii.object));
@@ -977,7 +998,7 @@ public class ViewPager extends ViewGroup {
                         }
                         if (pos == ii.position && !ii.scrolling) {
                             mItems.remove(itemIndex);
-                            mAdapter.destroyItem(this, pos, ii.object);
+                            adapterDestroyItem(this, pos, ii.object);
                             if (DEBUG) {
                                 Log.i(TAG, "populate() - destroyItem() with pos: " + pos +
                                         " view: " + ((View) ii.object));
@@ -1007,7 +1028,7 @@ public class ViewPager extends ViewGroup {
             }
         }
 
-        mAdapter.setPrimaryItem(this, mCurItem, curItem != null ? curItem.object : null);
+        adapterSetPrimaryItem(this, mCurItem, curItem != null ? curItem.object : null);
 
         mAdapter.finishUpdate(this);
 
@@ -1079,7 +1100,7 @@ public class ViewPager extends ViewGroup {
                     while (pos < ii.position) {
                         // We don't have an item populated for this,
                         // ask the adapter for an offset.
-                        offset += mAdapter.getPageWidth(pos) + marginOffset;
+                        offset += adapterGetPageWidth(pos) + marginOffset;
                         pos++;
                     }
                     ii.offset = offset;
@@ -1099,7 +1120,7 @@ public class ViewPager extends ViewGroup {
                     while (pos > ii.position) {
                         // We don't have an item populated for this,
                         // ask the adapter for an offset.
-                        offset -= mAdapter.getPageWidth(pos) + marginOffset;
+                        offset -= adapterGetPageWidth(pos) + marginOffset;
                         pos--;
                     }
                     offset -= ii.widthFactor + marginOffset;
@@ -1119,7 +1140,7 @@ public class ViewPager extends ViewGroup {
         for (int i = curIndex - 1; i >= 0; i--, pos--) {
             final ItemInfo ii = mItems.get(i);
             while (pos > ii.position) {
-                offset -= mAdapter.getPageWidth(pos--) + marginOffset;
+                offset -= adapterGetPageWidth(pos--) + marginOffset;
             }
             offset -= ii.widthFactor + marginOffset;
             ii.offset = offset;
@@ -1131,7 +1152,7 @@ public class ViewPager extends ViewGroup {
         for (int i = curIndex + 1; i < itemCount; i++, pos++) {
             final ItemInfo ii = mItems.get(i);
             while (pos < ii.position) {
-                offset += mAdapter.getPageWidth(pos++) + marginOffset;
+                offset += adapterGetPageWidth(pos++) + marginOffset;
             }
             if (ii.position == N - 1) {
                 mLastOffset = offset + ii.widthFactor - 1;
@@ -1643,10 +1664,10 @@ public class ViewPager extends ViewGroup {
         }
 
         if (mOnPageChangeListener != null) {
-            mOnPageChangeListener.onPageScrolled(position, offset, offsetPixels);
+            listenerOnPageScrolled(mOnPageChangeListener, position, offset, offsetPixels);
         }
         if (mInternalPageChangeListener != null) {
-            mInternalPageChangeListener.onPageScrolled(position, offset, offsetPixels);
+            listenerOnPageScrolled(mInternalPageChangeListener, position, offset, offsetPixels);
         }
 
         if (mPageTransformer != null) {
@@ -2041,7 +2062,7 @@ public class ViewPager extends ViewGroup {
                 ii = mTempItem;
                 ii.offset = lastOffset + lastWidth + marginOffset;
                 ii.position = lastPos + 1;
-                ii.widthFactor = mAdapter.getPageWidth(ii.position);
+                ii.widthFactor = adapterGetPageWidth(ii.position);
                 i--;
             }
             offset = ii.offset;
@@ -2157,7 +2178,7 @@ public class ViewPager extends ViewGroup {
                     drawAt = (ii.offset + ii.widthFactor) * width;
                     offset = ii.offset + ii.widthFactor + marginOffset;
                 } else {
-                    float widthFactor = mAdapter.getPageWidth(pos);
+                    float widthFactor = adapterGetPageWidth(pos);
                     drawAt = (offset + widthFactor) * width;
                     offset += widthFactor + marginOffset;
                 }

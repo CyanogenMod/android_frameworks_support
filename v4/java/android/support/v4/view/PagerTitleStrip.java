@@ -275,7 +275,7 @@ public class PagerTitleStrip extends ViewGroup implements ViewPager.Decor {
         if (currentItem >= 1 && adapter != null) {
             text = adapter.getPageTitle(currentItem - 1);
         }
-        mPrevText.setText(text);
+        mNextText.setText(text);
 
         mCurrText.setText(adapter != null && currentItem < itemCount ?
                 adapter.getPageTitle(currentItem) : null);
@@ -284,7 +284,7 @@ public class PagerTitleStrip extends ViewGroup implements ViewPager.Decor {
         if (currentItem + 1 < itemCount && adapter != null) {
             text = adapter.getPageTitle(currentItem + 1);
         }
-        mNextText.setText(text);
+        mPrevText.setText(text);
 
         // Measure everything
         final int width = getWidth() - getPaddingLeft() - getPaddingRight();
@@ -475,9 +475,9 @@ public class PagerTitleStrip extends ViewGroup implements ViewPager.Decor {
         public void onPageScrolled(int position, float positionOffset, int positionOffsetPixels) {
             if (positionOffset > 0.5f) {
                 // Consider ourselves to be on the next page when we're 50% of the way there.
-                position++;
+                position--;
             }
-            updateTextPositions(position, positionOffset, false);
+            updateTextPositions(position > 0 ? position : 0, positionOffset, false);
         }
 
         @Override
@@ -487,7 +487,7 @@ public class PagerTitleStrip extends ViewGroup implements ViewPager.Decor {
                 updateText(mPager.getCurrentItem(), mPager.getAdapter());
 
                 final float offset = mLastKnownPositionOffset >= 0 ? mLastKnownPositionOffset : 0;
-                updateTextPositions(mPager.getCurrentItem(), offset, true);
+                updateTextPositions(mPager.getCurrentItem() , offset, true);
             }
         }
 

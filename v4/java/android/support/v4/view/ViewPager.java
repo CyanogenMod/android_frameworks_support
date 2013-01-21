@@ -140,8 +140,8 @@ public class ViewPager extends ViewGroup {
     // Offsets of the first and last items, if known.
     // Set during population, used to determine if we are at the beginning
     // or end of the pager data set during touch scrolling.
-    private float mFirstOffset = -Float.MAX_VALUE;
-    private float mLastOffset = Float.MAX_VALUE;
+    private float mLeftOffset = -Float.MAX_VALUE;
+    private float mRightOffset = Float.MAX_VALUE;
 
     private int mChildWidthMeasureSpec;
     private int mChildHeightMeasureSpec;
@@ -530,8 +530,8 @@ public class ViewPager extends ViewGroup {
         int destX = 0;
         if (curInfo != null) {
             final int width = getWidth();
-            destX = (int) (width * Math.max(mFirstOffset,
-                    Math.min(curInfo.offset, mLastOffset)));
+            destX = (int) (width * Math.max(mLeftOffset,
+                    Math.min(curInfo.offset, mRightOffset)));
         }
         if (smoothScroll) {
             smoothScrollTo(destX, 0, velocity);
@@ -1068,7 +1068,8 @@ public class ViewPager extends ViewGroup {
             if (oldCurPosition < curItem.position) {
                 int itemIndex = 0;
                 ItemInfo ii = null;
-                float offset = oldCurInfo.offset + oldCurInfo.widthFactor + marginOffset;
+                float offset = oldCurInfo.offset;
+                //float offset = oldCurInfo.offset + oldCurInfo.widthFactor + marginOffset;
                 for (int pos = oldCurPosition + 1;
                         pos <= curItem.position && itemIndex < mItems.size(); pos++) {
                     ii = mItems.get(itemIndex);
@@ -1079,16 +1080,19 @@ public class ViewPager extends ViewGroup {
                     while (pos < ii.position) {
                         // We don't have an item populated for this,
                         // ask the adapter for an offset.
-                        offset += mAdapter.getPageWidth(pos) + marginOffset;
+                        //offset += mAdapter.getPageWidth(pos) + marginOffset;
+                        offset -= mAdapter.getPageWidth(pos) + marginOffset;
                         pos++;
                     }
+                    offset -= ii.widthFactor + marginOffset;
                     ii.offset = offset;
-                    offset += ii.widthFactor + marginOffset;
+                    //offset += ii.widthFactor + marginOffset;
                 }
             } else if (oldCurPosition > curItem.position) {
                 int itemIndex = mItems.size() - 1;
                 ItemInfo ii = null;
-                float offset = oldCurInfo.offset;
+                float offset = oldCurInfo.offset + oldCurInfo.widthFactor + marginOffset;
+                //float offset = oldCurInfo.offset;
                 for (int pos = oldCurPosition - 1;
                         pos >= curItem.position && itemIndex >= 0; pos--) {
                     ii = mItems.get(itemIndex);
@@ -1099,45 +1103,62 @@ public class ViewPager extends ViewGroup {
                     while (pos > ii.position) {
                         // We don't have an item populated for this,
                         // ask the adapter for an offset.
-                        offset -= mAdapter.getPageWidth(pos) + marginOffset;
+                        //offset -= mAdapter.getPageWidth(pos) + marginOffset;
+                        offset += mAdapter.getPageWidth(pos) + marginOffset;
                         pos--;
                     }
-                    offset -= ii.widthFactor + marginOffset;
+                    //offset -= ii.widthFactor + marginOffset;
                     ii.offset = offset;
+                    offset += ii.widthFactor + marginOffset;
                 }
             }
         }
 
         // Base all offsets off of curItem.
         final int itemCount = mItems.size();
-        float offset = curItem.offset;
+        float offset = curItem.offset + curItem.widthFactor + marginOffset;
+        //float offset = curItem.offset;
         int pos = curItem.position - 1;
-        mFirstOffset = curItem.position == 0 ? curItem.offset : -Float.MAX_VALUE;
-        mLastOffset = curItem.position == N - 1 ?
+        mLeftOffset = curItem.position == N - 1 ? curItem.offset : -Float.MAX_VALUE;//mLeftOffset
+        mRightOffset = curItem.position == 0 ?
                 curItem.offset + curItem.widthFactor - 1 : Float.MAX_VALUE;
+/*        mLeftOffset = curItem.position == 0 ? curItem.offset : -Float.MAX_VALUE;//mLeftOffset
+        mRightOffset = curItem.position == N - 1 ?
+                curItem.offset + curItem.widthFactor - 1 : Float.MAX_VALUE;//mRightOffset*/
         // Previous pages
         for (int i = curIndex - 1; i >= 0; i--, pos--) {
             final ItemInfo ii = mItems.get(i);
             while (pos > ii.position) {
-                offset -= mAdapter.getPageWidth(pos--) + marginOffset;
+                offset += mAdapter.getPageWidth(pos--) + marginOffset;
+//                offset -= mAdapter.getPageWidth(pos--) + marginOffset;
             }
-            offset -= ii.widthFactor + marginOffset;
             ii.offset = offset;
-            if (ii.position == 0) mFirstOffset = offset;
+            if (ii.position == 0) {
+                mRightOffset = offset + ii.widthFactor - 1;
+            }
+            offset += ii.widthFactor + marginOffset;
+/*            offset -= ii.widthFactor + marginOffset;
+            ii.offset = offset;
+            if (ii.position == 0) mLeftOffset = offset;*/
         }
-        offset = curItem.offset + curItem.widthFactor + marginOffset;
+        offset = curItem.offset;
+//        offset = curItem.offset + curItem.widthFactor + marginOffset;
         pos = curItem.position + 1;
         // Next pages
         for (int i = curIndex + 1; i < itemCount; i++, pos++) {
             final ItemInfo ii = mItems.get(i);
             while (pos < ii.position) {
-                offset += mAdapter.getPageWidth(pos++) + marginOffset;
+                offset -= mAdapter.getPageWidth(pos++) + marginOffset;
+//                offset += mAdapter.getPageWidth(pos++) + marginOffset;
             }
-            if (ii.position == N - 1) {
-                mLastOffset = offset + ii.widthFactor - 1;
+            offset -= ii.widthFactor + marginOffset;
+            ii.offset = offset;
+            if (ii.position == N - 1) mLeftOffset = offset;
+/*            if (ii.position == N - 1) {
+                mRightOffset = offset + ii.widthFactor - 1;
             }
             ii.offset = offset;
-            offset += ii.widthFactor + marginOffset;
+            offset += ii.widthFactor + marginOffset;*/
         }
 
         mNeedCalculatePageOffsets = false;
@@ -1412,7 +1433,7 @@ public class ViewPager extends ViewGroup {
             }
         } else {
             final ItemInfo ii = infoForPosition(mCurItem);
-            final float scrollOffset = ii != null ? Math.min(ii.offset, mLastOffset) : 0;
+            final float scrollOffset = ii != null ? Math.min(ii.offset, mRightOffset) : 0;
             final int scrollPos = (int) (scrollOffset * width);
             if (scrollPos != getScrollX()) {
                 completeScroll(false);
@@ -1982,20 +2003,24 @@ public class ViewPager extends ViewGroup {
         float scrollX = oldScrollX + deltaX;
         final int width = getWidth();
 
-        float leftBound = width * mFirstOffset;
-        float rightBound = width * mLastOffset;
+        float leftBound = width * mLeftOffset;
+        float rightBound = width * mRightOffset;
         boolean leftAbsolute = true;
         boolean rightAbsolute = true;
 
         final ItemInfo firstItem = mItems.get(0);
         final ItemInfo lastItem = mItems.get(mItems.size() - 1);
         if (firstItem.position != 0) {
-            leftAbsolute = false;
-            leftBound = firstItem.offset * width;
+            rightAbsolute = false;
+            rightBound = firstItem.offset * width;
+            //leftAbsolute = false;
+            //leftBound = firstItem.offset * width;
         }
         if (lastItem.position != mAdapter.getCount() - 1) {
-            rightAbsolute = false;
-            rightBound = lastItem.offset * width;
+            leftAbsolute = false;
+            leftBound = lastItem.offset * width;
+            //rightAbsolute = false;
+            //rightBound = lastItem.offset * width;
         }
 
         if (scrollX < leftBound) {
@@ -2065,17 +2090,21 @@ public class ViewPager extends ViewGroup {
         return lastItem;
     }
 
-    private int determineTargetPage(int currentPage, float pageOffset, int velocity, int deltaX) {
+    private int determineTargetPage(int currentPage, float pageOffset, int velocity, int deltaX) {//Todo: fix this one.
         int targetPage;
         if (Math.abs(deltaX) > mFlingDistance && Math.abs(velocity) > mMinimumVelocity) {
-            targetPage = velocity > 0 ? currentPage : currentPage + 1;
+            //targetPage = velocity > 0 ? currentPage : currentPage + 1;
+            targetPage = velocity > 0 ? currentPage : currentPage - 1;
         } else if (mSeenPositionMin >= 0 && mSeenPositionMin < currentPage && pageOffset < 0.5f) {
-            targetPage = currentPage + 1;
+            //targetPage = currentPage + 1;
+            targetPage = currentPage - 1;
         } else if (mSeenPositionMax >= 0 && mSeenPositionMax > currentPage + 1 &&
                 pageOffset >= 0.5f) {
-            targetPage = currentPage - 1;
+            //targetPage = currentPage - 1;
+            targetPage = currentPage + 1;
         } else {
-            targetPage = (int) (currentPage + pageOffset + 0.5f);
+            //targetPage = (int) (currentPage + pageOffset + 0.5f);
+            targetPage = (int) (currentPage + pageOffset - 0.5f);
         }
 
         if (mItems.size() > 0) {
@@ -2104,7 +2133,7 @@ public class ViewPager extends ViewGroup {
                 final int width = getWidth();
 
                 canvas.rotate(270);
-                canvas.translate(-height + getPaddingTop(), mFirstOffset * width);
+                canvas.translate(-height + getPaddingTop(), mLeftOffset * width);
                 mLeftEdge.setSize(height, width);
                 needsInvalidate |= mLeftEdge.draw(canvas);
                 canvas.restoreToCount(restoreCount);
@@ -2115,7 +2144,7 @@ public class ViewPager extends ViewGroup {
                 final int height = getHeight() - getPaddingTop() - getPaddingBottom();
 
                 canvas.rotate(90);
-                canvas.translate(-getPaddingTop(), -(mLastOffset + 1) * width);
+                canvas.translate(-getPaddingTop(), -(mRightOffset + 1) * width);
                 mRightEdge.setSize(height, width);
                 needsInvalidate |= mRightEdge.draw(canvas);
                 canvas.restoreToCount(restoreCount);
@@ -2260,16 +2289,18 @@ public class ViewPager extends ViewGroup {
         float scrollX = oldScrollX - xOffset;
         final int width = getWidth();
 
-        float leftBound = width * mFirstOffset;
-        float rightBound = width * mLastOffset;
+        float leftBound = width * mLeftOffset;
+        float rightBound = width * mRightOffset;
 
         final ItemInfo firstItem = mItems.get(0);
         final ItemInfo lastItem = mItems.get(mItems.size() - 1);
         if (firstItem.position != 0) {
-            leftBound = firstItem.offset * width;
+            rightBound = firstItem.offset * width;
+            //leftBound = firstItem.offset * width;
         }
         if (lastItem.position != mAdapter.getCount() - 1) {
-            rightBound = lastItem.offset * width;
+            leftBound = lastItem.offset * width;
+            //rightBound = lastItem.offset * width;
         }
 
         if (scrollX < leftBound) {

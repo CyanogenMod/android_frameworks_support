@@ -17,6 +17,7 @@
 package android.support.v4.view;
 
 import android.content.Context;
+import android.content.res.Configuration;
 import android.content.res.TypedArray;
 import android.database.DataSetObserver;
 import android.graphics.Canvas;
@@ -140,8 +141,8 @@ public class ViewPager extends ViewGroup {
     // Offsets of the first and last items, if known.
     // Set during population, used to determine if we are at the beginning
     // or end of the pager data set during touch scrolling.
-    private float mFirstOffset = -Float.MAX_VALUE;
-    private float mLastOffset = Float.MAX_VALUE;
+    private float mLeftEdgeOffset = -Float.MAX_VALUE;
+    private float mRightEdgeOffset = Float.MAX_VALUE;
 
     private int mChildWidthMeasureSpec;
     private int mChildHeightMeasureSpec;
@@ -201,12 +202,14 @@ public class ViewPager extends ViewGroup {
     private boolean mNeedCalculatePageOffsets = false;
     private boolean mCalledSuper;
     private int mDecorChildCount;
+    private boolean mRtlLayout = false;
 
     private OnPageChangeListener mOnPageChangeListener;
     private OnPageChangeListener mInternalPageChangeListener;
     private OnAdapterChangeListener mAdapterChangeListener;
     private PageTransformer mPageTransformer;
     private Method mSetChildrenDrawingOrderEnabled;
+    private Method mGetLayoutDirection;
 
     private static final int DRAW_ORDER_DEFAULT = 0;
     private static final int DRAW_ORDER_FORWARD = 1;
@@ -355,11 +358,11 @@ public class ViewPager extends ViewGroup {
         mMaximumVelocity = configuration.getScaledMaximumFlingVelocity();
         mLeftEdge = new EdgeEffectCompat(context);
         mRightEdge = new EdgeEffectCompat(context);
-
         final float density = context.getResources().getDisplayMetrics().density;
         mFlingDistance = (int) (MIN_DISTANCE_FOR_FLING * density);
         mCloseEnough = (int) (CLOSE_ENOUGH * density);
         mDefaultGutterSize = (int) (DEFAULT_GUTTER_SIZE * density);
+        mRtlLayout = isLayoutRTL();
 
         ViewCompat.setAccessibilityDelegate(this, new MyAccessibilityDelegate());
 
@@ -368,6 +371,10 @@ public class ViewPager extends ViewGroup {
             ViewCompat.setImportantForAccessibility(this,
                     ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_YES);
         }
+    }
+
+    public boolean isRtl(){
+        return mRtlLayout;
     }
 
     @Override
@@ -530,8 +537,8 @@ public class ViewPager extends ViewGroup {
         int destX = 0;
         if (curInfo != null) {
             final int width = getWidth();
-            destX = (int) (width * Math.max(mFirstOffset,
-                    Math.min(curInfo.offset, mLastOffset)));
+            destX = (int) (width * Math.max(mLeftEdgeOffset,
+                    Math.min(curInfo.offset, mRightEdgeOffset)));
         }
         if (smoothScroll) {
             smoothScrollTo(destX, 0, velocity);
@@ -603,6 +610,23 @@ public class ViewPager extends ViewGroup {
             mSetChildrenDrawingOrderEnabled.invoke(this, enable);
         } catch (Exception e) {
             Log.e(TAG, "Error changing children drawing order", e);
+        }
+    }
+
+    boolean isLayoutRTL(){
+        if(mGetLayoutDirection == null) {
+            try {
+                mGetLayoutDirection = Configuration.class.getDeclaredMethod("getLayoutDirection");
+            } catch (NoSuchMethodException e) {
+                Log.e(TAG, "Can't find isLayoutRtl", e);
+                return mRtlLayout;
+            }
+        }
+        try {
+            return (Integer) mGetLayoutDirection.invoke(getContext().getResources().getConfiguration()) == 1;//LAYOUT_DIRECTION_RTL
+        } catch (Exception e) {
+            Log.e(TAG, "Error getting layout direction", e);
+            return mRtlLayout;
         }
     }
 
@@ -1068,76 +1092,148 @@ public class ViewPager extends ViewGroup {
             if (oldCurPosition < curItem.position) {
                 int itemIndex = 0;
                 ItemInfo ii = null;
-                float offset = oldCurInfo.offset + oldCurInfo.widthFactor + marginOffset;
-                for (int pos = oldCurPosition + 1;
-                        pos <= curItem.position && itemIndex < mItems.size(); pos++) {
-                    ii = mItems.get(itemIndex);
-                    while (pos > ii.position && itemIndex < mItems.size() - 1) {
-                        itemIndex++;
+                float offset = (mRtlLayout ? oldCurInfo.offset:
+                    oldCurInfo.offset + oldCurInfo.widthFactor + marginOffset);
+                if(mRtlLayout){
+                    for (int pos = oldCurPosition + 1;
+                            pos <= curItem.position && itemIndex < mItems.size(); pos++) {
                         ii = mItems.get(itemIndex);
+                        while (pos > ii.position && itemIndex < mItems.size() - 1) {
+                            itemIndex++;
+                            ii = mItems.get(itemIndex);
+                        }
+                        while (pos < ii.position) {
+                            // We don't have an item populated for this,
+                            // ask the adapter for an offset.
+                            offset -= mAdapter.getPageWidth(pos) + marginOffset;
+                            pos++;
+                        }
+                        offset -= ii.widthFactor + marginOffset;
+                        ii.offset = offset;
                     }
-                    while (pos < ii.position) {
-                        // We don't have an item populated for this,
-                        // ask the adapter for an offset.
-                        offset += mAdapter.getPageWidth(pos) + marginOffset;
-                        pos++;
+                }
+                else{
+                    for (int pos = oldCurPosition + 1;
+                            pos <= curItem.position && itemIndex < mItems.size(); pos++) {
+                        ii = mItems.get(itemIndex);
+                        while (pos > ii.position && itemIndex < mItems.size() - 1) {
+                            itemIndex++;
+                            ii = mItems.get(itemIndex);
+                        }
+                        while (pos < ii.position) {
+                            // We don't have an item populated for this,
+                            // ask the adapter for an offset.
+                            offset += mAdapter.getPageWidth(pos) + marginOffset;
+                            pos++;
+                        }
+                        ii.offset = offset;
+                        offset += ii.widthFactor + marginOffset;
                     }
-                    ii.offset = offset;
-                    offset += ii.widthFactor + marginOffset;
                 }
             } else if (oldCurPosition > curItem.position) {
                 int itemIndex = mItems.size() - 1;
                 ItemInfo ii = null;
-                float offset = oldCurInfo.offset;
-                for (int pos = oldCurPosition - 1;
-                        pos >= curItem.position && itemIndex >= 0; pos--) {
-                    ii = mItems.get(itemIndex);
-                    while (pos < ii.position && itemIndex > 0) {
-                        itemIndex--;
+                float offset = (mRtlLayout ? oldCurInfo.offset + oldCurInfo.widthFactor + marginOffset:
+                    oldCurInfo.offset);
+                if(mRtlLayout){
+                    for (int pos = oldCurPosition - 1;
+                            pos >= curItem.position && itemIndex >= 0; pos--) {
                         ii = mItems.get(itemIndex);
+                        while (pos < ii.position && itemIndex > 0) {
+                            itemIndex--;
+                            ii = mItems.get(itemIndex);
+                        }
+                        while (pos > ii.position) {
+                            // We don't have an item populated for this,
+                            // ask the adapter for an offset.
+                            offset += mAdapter.getPageWidth(pos) + marginOffset;
+                            pos--;
+                        }
+                        ii.offset = offset;
+                        offset += ii.widthFactor + marginOffset;
                     }
-                    while (pos > ii.position) {
-                        // We don't have an item populated for this,
-                        // ask the adapter for an offset.
-                        offset -= mAdapter.getPageWidth(pos) + marginOffset;
-                        pos--;
+                }
+                else{
+                    for (int pos = oldCurPosition - 1;
+                            pos >= curItem.position && itemIndex >= 0; pos--) {
+                        ii = mItems.get(itemIndex);
+                        while (pos < ii.position && itemIndex > 0) {
+                            itemIndex--;
+                            ii = mItems.get(itemIndex);
+                        }
+                        while (pos > ii.position) {
+                            // We don't have an item populated for this,
+                            // ask the adapter for an offset.
+                            offset -= mAdapter.getPageWidth(pos) + marginOffset;
+                            pos--;
+                        }
+                        offset -= ii.widthFactor + marginOffset;
+                        ii.offset = offset;
                     }
-                    offset -= ii.widthFactor + marginOffset;
-                    ii.offset = offset;
                 }
             }
         }
 
         // Base all offsets off of curItem.
         final int itemCount = mItems.size();
-        float offset = curItem.offset;
+        float offset = (mRtlLayout ? curItem.offset + curItem.widthFactor + marginOffset:
+            curItem.offset);
         int pos = curItem.position - 1;
-        mFirstOffset = curItem.position == 0 ? curItem.offset : -Float.MAX_VALUE;
-        mLastOffset = curItem.position == N - 1 ?
+        mLeftEdgeOffset = curItem.position == (mRtlLayout ? N - 1 : 0) ? curItem.offset : -Float.MAX_VALUE;
+        mRightEdgeOffset = curItem.position == (mRtlLayout ? 0 : N - 1) ?
                 curItem.offset + curItem.widthFactor - 1 : Float.MAX_VALUE;
         // Previous pages
-        for (int i = curIndex - 1; i >= 0; i--, pos--) {
-            final ItemInfo ii = mItems.get(i);
-            while (pos > ii.position) {
-                offset -= mAdapter.getPageWidth(pos--) + marginOffset;
+        if(mRtlLayout){
+            for (int i = curIndex - 1; i >= 0; i--, pos--) {
+                final ItemInfo ii = mItems.get(i);
+                while (pos > ii.position) {
+                    offset += (mAdapter.getPageWidth(pos--) + marginOffset);
+                }
+                ii.offset = offset;
+                if (ii.position == 0) {
+                    mRightEdgeOffset = offset + ii.widthFactor - 1;
+                }
+                offset += ii.widthFactor + marginOffset;
             }
-            offset -= ii.widthFactor + marginOffset;
-            ii.offset = offset;
-            if (ii.position == 0) mFirstOffset = offset;
         }
-        offset = curItem.offset + curItem.widthFactor + marginOffset;
+        else{
+            for (int i = curIndex - 1; i >= 0; i--, pos--) {
+                final ItemInfo ii = mItems.get(i);
+                while (pos > ii.position) {
+                    offset -= (mAdapter.getPageWidth(pos--) + marginOffset);
+                }
+                offset -= ii.widthFactor + marginOffset;
+                ii.offset = offset;
+                if (ii.position == 0) mLeftEdgeOffset = offset;
+            }
+        }
+        offset = (mRtlLayout ? curItem.offset:
+            curItem.offset + curItem.widthFactor + marginOffset);
         pos = curItem.position + 1;
         // Next pages
-        for (int i = curIndex + 1; i < itemCount; i++, pos++) {
-            final ItemInfo ii = mItems.get(i);
-            while (pos < ii.position) {
-                offset += mAdapter.getPageWidth(pos++) + marginOffset;
+        if(mRtlLayout){
+            for (int i = curIndex + 1; i < itemCount; i++, pos++) {
+                final ItemInfo ii = mItems.get(i);
+                while (pos < ii.position) {
+                    offset -= (mAdapter.getPageWidth(pos++) + marginOffset);
+                }
+                offset -= ii.widthFactor + marginOffset;
+                ii.offset = offset;
+                if (ii.position == N - 1) mLeftEdgeOffset = offset;
             }
-            if (ii.position == N - 1) {
-                mLastOffset = offset + ii.widthFactor - 1;
+        }
+        else{
+            for (int i = curIndex + 1; i < itemCount; i++, pos++) {
+                final ItemInfo ii = mItems.get(i);
+                while (pos < ii.position) {
+                    offset += (mAdapter.getPageWidth(pos++) + marginOffset);
+                }
+                if (ii.position == N - 1) {
+                    mRightEdgeOffset = offset + ii.widthFactor - 1;
+                }
+                ii.offset = offset;
+                offset += ii.widthFactor + marginOffset;
             }
-            ii.offset = offset;
-            offset += ii.widthFactor + marginOffset;
         }
 
         mNeedCalculatePageOffsets = false;
@@ -1412,7 +1508,7 @@ public class ViewPager extends ViewGroup {
             }
         } else {
             final ItemInfo ii = infoForPosition(mCurItem);
-            final float scrollOffset = ii != null ? Math.min(ii.offset, mLastOffset) : 0;
+            final float scrollOffset = ii != null ? Math.min(ii.offset, mRightEdgeOffset) : 0;
             final int scrollPos = (int) (scrollOffset * width);
             if (scrollPos != getScrollX()) {
                 completeScroll(false);
@@ -1982,20 +2078,32 @@ public class ViewPager extends ViewGroup {
         float scrollX = oldScrollX + deltaX;
         final int width = getWidth();
 
-        float leftBound = width * mFirstOffset;
-        float rightBound = width * mLastOffset;
+        float leftBound = width * mLeftEdgeOffset;
+        float rightBound = width * mRightEdgeOffset;
         boolean leftAbsolute = true;
         boolean rightAbsolute = true;
 
         final ItemInfo firstItem = mItems.get(0);
         final ItemInfo lastItem = mItems.get(mItems.size() - 1);
         if (firstItem.position != 0) {
-            leftAbsolute = false;
-            leftBound = firstItem.offset * width;
+            if(mRtlLayout){
+                rightAbsolute = false;
+                rightBound = firstItem.offset * width;
+            }
+            else{
+                leftAbsolute = false;
+                leftBound = firstItem.offset * width;
+            }
         }
         if (lastItem.position != mAdapter.getCount() - 1) {
-            rightAbsolute = false;
-            rightBound = lastItem.offset * width;
+            if(mRtlLayout){
+                leftAbsolute = false;
+                leftBound = lastItem.offset * width;
+            }
+            else{
+                rightAbsolute = false;
+                rightBound = lastItem.offset * width;
+            }
         }
 
         if (scrollX < leftBound) {
@@ -2033,33 +2141,65 @@ public class ViewPager extends ViewGroup {
         boolean first = true;
 
         ItemInfo lastItem = null;
-        for (int i = 0; i < mItems.size(); i++) {
-            ItemInfo ii = mItems.get(i);
-            float offset;
-            if (!first && ii.position != lastPos + 1) {
-                // Create a synthetic item for a missing page.
-                ii = mTempItem;
-                ii.offset = lastOffset + lastWidth + marginOffset;
-                ii.position = lastPos + 1;
-                ii.widthFactor = mAdapter.getPageWidth(ii.position);
-                i--;
-            }
-            offset = ii.offset;
-
-            final float leftBound = offset;
-            final float rightBound = offset + ii.widthFactor + marginOffset;
-            if (first || scrollOffset >= leftBound) {
-                if (scrollOffset < rightBound || i == mItems.size() - 1) {
-                    return ii;
+        if(mRtlLayout){
+            for (int i = 0; i < mItems.size(); i++) {
+                ItemInfo ii = mItems.get(i);
+                float offset;
+                if (!first && ii.position != lastPos + 1) {
+                    // Create a synthetic item for a missing page.
+                    ii = mTempItem;
+                    ii.offset = lastOffset - lastWidth - marginOffset;
+                    ii.position = lastPos + 1;
+                    ii.widthFactor = mAdapter.getPageWidth(ii.position);
+                    i--;
                 }
-            } else {
-                return lastItem;
+                offset = ii.offset;
+
+                final float leftBound = offset;
+                final float rightBound = offset + ii.widthFactor + marginOffset;
+                if (first || scrollOffset < rightBound) {
+                    if (scrollOffset >= leftBound || i == mItems.size() - 1) {
+                        return ii;
+                    }
+                } else {
+                    return lastItem;
+                }
+                first = false;
+                lastPos = ii.position;
+                lastOffset = offset;
+                lastWidth = ii.widthFactor;
+                lastItem = ii;
             }
-            first = false;
-            lastPos = ii.position;
-            lastOffset = offset;
-            lastWidth = ii.widthFactor;
-            lastItem = ii;
+        }
+        else{
+            for (int i = 0; i < mItems.size(); i++) {
+                ItemInfo ii = mItems.get(i);
+                float offset;
+                if (!first && ii.position != lastPos + 1) {
+                    // Create a synthetic item for a missing page.
+                    ii = mTempItem;
+                    ii.offset = lastOffset + (lastWidth + marginOffset);
+                    ii.position = lastPos + 1;
+                    ii.widthFactor = mAdapter.getPageWidth(ii.position);
+                    i--;
+                }
+                offset = ii.offset;
+
+                final float leftBound = offset;
+                final float rightBound = offset + ii.widthFactor + marginOffset;
+                if (first || scrollOffset >= leftBound) {
+                    if (scrollOffset < rightBound || i == mItems.size() - 1) {
+                        return ii;
+                    }
+                } else {
+                    return lastItem;
+                }
+                first = false;
+                lastPos = ii.position;
+                lastOffset = offset;
+                lastWidth = ii.widthFactor;
+                lastItem = ii;
+            }
         }
 
         return lastItem;
@@ -2067,15 +2207,29 @@ public class ViewPager extends ViewGroup {
 
     private int determineTargetPage(int currentPage, float pageOffset, int velocity, int deltaX) {
         int targetPage;
-        if (Math.abs(deltaX) > mFlingDistance && Math.abs(velocity) > mMinimumVelocity) {
-            targetPage = velocity > 0 ? currentPage : currentPage + 1;
-        } else if (mSeenPositionMin >= 0 && mSeenPositionMin < currentPage && pageOffset < 0.5f) {
-            targetPage = currentPage + 1;
-        } else if (mSeenPositionMax >= 0 && mSeenPositionMax > currentPage + 1 &&
-                pageOffset >= 0.5f) {
-            targetPage = currentPage - 1;
-        } else {
-            targetPage = (int) (currentPage + pageOffset + 0.5f);
+        if(mRtlLayout){
+                if (Math.abs(deltaX) > mFlingDistance && Math.abs(velocity) > mMinimumVelocity) {
+                    targetPage = velocity > 0 ? currentPage : currentPage - 1;
+                } else if (mSeenPositionMin >= 0 && mSeenPositionMin < currentPage && pageOffset < 0.5f) {
+                    targetPage = currentPage - 1;
+                } else if (mSeenPositionMax >= 0 && mSeenPositionMax > currentPage + 1 &&
+                        pageOffset >= 0.5f) {
+                    targetPage = currentPage + 1;
+                } else {
+                    targetPage = (int) (currentPage + 1 - pageOffset - 0.5f);//Not sure about this one
+                }
+            }
+        else{
+                if (Math.abs(deltaX) > mFlingDistance && Math.abs(velocity) > mMinimumVelocity) {
+                    targetPage = velocity > 0 ? currentPage : currentPage + 1;
+                } else if (mSeenPositionMin >= 0 && mSeenPositionMin < currentPage && pageOffset < 0.5f) {
+                    targetPage = currentPage + 1;
+                } else if (mSeenPositionMax >= 0 && mSeenPositionMax > currentPage + 1 &&
+                        pageOffset >= 0.5f) {
+                    targetPage = currentPage - 1;
+                } else {
+                    targetPage = (int) (currentPage + pageOffset + 0.5f);
+                }
         }
 
         if (mItems.size() > 0) {
@@ -2104,7 +2258,7 @@ public class ViewPager extends ViewGroup {
                 final int width = getWidth();
 
                 canvas.rotate(270);
-                canvas.translate(-height + getPaddingTop(), mFirstOffset * width);
+                canvas.translate(-height + getPaddingTop(), mLeftEdgeOffset * width);
                 mLeftEdge.setSize(height, width);
                 needsInvalidate |= mLeftEdge.draw(canvas);
                 canvas.restoreToCount(restoreCount);
@@ -2115,7 +2269,7 @@ public class ViewPager extends ViewGroup {
                 final int height = getHeight() - getPaddingTop() - getPaddingBottom();
 
                 canvas.rotate(90);
-                canvas.translate(-getPaddingTop(), -(mLastOffset + 1) * width);
+                canvas.translate(-getPaddingTop(), -(mRightEdgeOffset + 1) * width);
                 mRightEdge.setSize(height, width);
                 needsInvalidate |= mRightEdge.draw(canvas);
                 canvas.restoreToCount(restoreCount);
@@ -2147,29 +2301,58 @@ public class ViewPager extends ViewGroup {
             final int itemCount = mItems.size();
             final int firstPos = ii.position;
             final int lastPos = mItems.get(itemCount - 1).position;
-            for (int pos = firstPos; pos < lastPos; pos++) {
-                while (pos > ii.position && itemIndex < itemCount) {
-                    ii = mItems.get(++itemIndex);
-                }
+            if(mRtlLayout){
+                for (int pos = firstPos; pos < lastPos; pos++) {
+                    while (pos > ii.position && itemIndex < itemCount) {
+                        ii = mItems.get(++itemIndex);
+                    }
 
-                float drawAt;
-                if (pos == ii.position) {
-                    drawAt = (ii.offset + ii.widthFactor) * width;
-                    offset = ii.offset + ii.widthFactor + marginOffset;
-                } else {
-                    float widthFactor = mAdapter.getPageWidth(pos);
-                    drawAt = (offset + widthFactor) * width;
-                    offset += widthFactor + marginOffset;
-                }
+                    float drawAt;
+                    if (pos == ii.position) {
+                        drawAt = (ii.offset + ii.widthFactor) * width;
+                        offset = ii.offset - ii.widthFactor - marginOffset;
+                    } else {
+                        float widthFactor = mAdapter.getPageWidth(pos);
+                        drawAt = (offset + widthFactor) * width;
+                        offset -= widthFactor + marginOffset;
+                    }
 
-                if (drawAt + mPageMargin > scrollX) {
-                    mMarginDrawable.setBounds((int) drawAt, mTopPageBounds,
-                            (int) (drawAt + mPageMargin + 0.5f), mBottomPageBounds);
-                    mMarginDrawable.draw(canvas);
-                }
+                    if (drawAt + mPageMargin > scrollX) {
+                        mMarginDrawable.setBounds((int) drawAt, mTopPageBounds,
+                                (int) (drawAt + mPageMargin + 0.5f), mBottomPageBounds);
+                        mMarginDrawable.draw(canvas);
+                    }
 
-                if (drawAt > scrollX + width) {
-                    break; // No more visible, no sense in continuing
+                    if (drawAt > scrollX + width) {
+                        break; // No more visible, no sense in continuing
+                    }
+                }
+            }
+            else{
+                for (int pos = firstPos; pos < lastPos; pos++) {
+                    while (pos > ii.position && itemIndex < itemCount) {
+                        ii = mItems.get(++itemIndex);
+                    }
+
+                    float drawAt;
+                    if (pos == ii.position) {
+                        drawAt = (ii.offset + ii.widthFactor) * width;
+                        offset = ii.offset + ii.widthFactor + marginOffset;
+                    } else {
+                        float widthFactor = mAdapter.getPageWidth(pos);
+                        drawAt = (offset + widthFactor) * width;
+                        offset += widthFactor + marginOffset;
+                    }
+
+                    if (drawAt + mPageMargin > scrollX) {
+                        mMarginDrawable.setBounds((int) drawAt, mTopPageBounds,
+                                (int) (drawAt + mPageMargin + 0.5f), mBottomPageBounds);
+                        mMarginDrawable.draw(canvas);
+                    }
+
+                    if (drawAt > scrollX + width) {
+                        break; // No more visible, no sense in continuing
+                    }
                 }
             }
         }
@@ -2260,16 +2443,26 @@ public class ViewPager extends ViewGroup {
         float scrollX = oldScrollX - xOffset;
         final int width = getWidth();
 
-        float leftBound = width * mFirstOffset;
-        float rightBound = width * mLastOffset;
+        float leftBound = width * mLeftEdgeOffset;
+        float rightBound = width * mRightEdgeOffset;
 
         final ItemInfo firstItem = mItems.get(0);
         final ItemInfo lastItem = mItems.get(mItems.size() - 1);
         if (firstItem.position != 0) {
-            leftBound = firstItem.offset * width;
+            if(mRtlLayout){
+                rightBound = firstItem.offset * width;
+            }
+            else{
+                leftBound = firstItem.offset * width;
+            }
         }
         if (lastItem.position != mAdapter.getCount() - 1) {
-            rightBound = lastItem.offset * width;
+            if(mRtlLayout){
+                leftBound = lastItem.offset * width;
+            }
+            else{
+                rightBound = lastItem.offset * width;
+            }
         }
 
         if (scrollX < leftBound) {

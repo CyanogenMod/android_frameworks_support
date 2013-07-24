@@ -712,7 +712,17 @@ public class Fragment implements ComponentCallbacks, OnCreateContextMenuListener
     final public boolean isHidden() {
         return mHidden;
     }
-    
+
+    /** @hide */
+    final public boolean hasOptionsMenu() {
+        return mHasMenu;
+    }
+
+    /** @hide */
+    final public boolean isMenuVisible() {
+        return mMenuVisible;
+    }
+
     /**
      * Called when the hidden state (as returned by {@link #isHidden()} of
      * the fragment has changed.  Fragments start out not hidden; this will
@@ -1319,7 +1329,7 @@ public class Fragment implements ComponentCallbacks, OnCreateContextMenuListener
     public boolean onContextItemSelected(MenuItem item) {
         return false;
     }
-    
+
     /**
      * Print the Fragments's state into the given stream.
      *

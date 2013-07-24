@@ -117,7 +117,7 @@ public class FragmentActivity extends Activity {
     boolean mLoadersStarted;
     HashMap<String, LoaderManagerImpl> mAllLoaderManagers;
     LoaderManagerImpl mLoaderManager;
-    
+
     static final class NonConfigurationInstances {
         Object activity;
         Object custom;
@@ -468,7 +468,7 @@ public class FragmentActivity extends Activity {
             }
             boolean goforit = super.onPreparePanel(featureId, view, menu);
             goforit |= mFragments.dispatchPrepareOptionsMenu(menu);
-            return goforit && menu.hasVisibleItems();
+            return goforit;
         }
         return super.onPreparePanel(featureId, view, menu);
     }
@@ -615,7 +615,9 @@ public class FragmentActivity extends Activity {
     }
 
     /**
-     * Invalidate the activity's options menu. This will cause relevant presentations
+     * Support library version of {@link Activity#invalidateOptionsMenu}.
+     *
+     * <p>Invalidate the activity's options menu. This will cause relevant presentations
      * of the menu to fully update via calls to onCreateOptionsMenu and
      * onPrepareOptionsMenu the next time the menu is requested.
      */
@@ -631,7 +633,7 @@ public class FragmentActivity extends Activity {
         // the options menu the next time it is prepared.
         mOptionsMenuInvalidated = true;
     }
-    
+
     /**
      * Print the Activity's state into the given stream.  This gets invoked if
      * you run "adb shell dumpsys activity <activity_component_name>".

@@ -9,8 +9,11 @@ import android.os.Parcel;
 import android.os.Parcelable;
 import android.os.UserHandle;
 import android.text.TextUtils;
+import android.util.Log;
 
 public class LiveFolder {
+
+    private static final String TAG = "LiveFolder";
 
     public static final class Constants {
 
@@ -44,6 +47,7 @@ public class LiveFolder {
         public static final String FOLDER_ITEM_TITLE_EXTRA = "item_title";
         public static final String FOLDER_ITEM_ID_EXTRA = "item_id";
         public static final String FOLDER_UPDATE_ALL = "update_all";
+        public static final String EXISTING_FOLDER_IDS_EXTRA = "existing_folder_ids";
 
         private static final String LAUNCHER_PERMISSION =
                 "com.cyanogenmod.trebuchet.permission.MANAGE_LIVE_FOLDERS";
@@ -63,7 +67,8 @@ public class LiveFolder {
         }
 
         if (errorMsg != null) {
-            throw new IllegalArgumentException(errorMsg);
+            Log.e(TAG, errorMsg);
+            return;
         }
 
         Intent i = new Intent(Constants.UPDATE_LIVE_FOLDER);
@@ -101,7 +106,8 @@ public class LiveFolder {
         }
 
         if (errorMsg != null) {
-            throw new IllegalArgumentException(errorMsg);
+            Log.e(TAG, errorMsg);
+            return;
         }
 
         Intent i = new Intent(Constants.UPDATE_LIVE_FOLDER);

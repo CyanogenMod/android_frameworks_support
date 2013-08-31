@@ -97,8 +97,8 @@ public class LiveFolder {
     private static void updateFolder(Context ctx, ArrayList<Item> folderItems, boolean updateAll, long folderId) {
         String errorMsg = null;
 
-        if (folderItems == null || folderItems.size() == 0) {
-            errorMsg = "Cannot populate folder with 0 items";
+        if (folderItems == null) {
+            errorMsg = "Folder items not specified";
         } else if (folderItems.size() > 9) {
             errorMsg = "Folder cannot contain more than " + Constants.MAX_ITEMS;
         } else if (folderId <= 0 && !updateAll) {

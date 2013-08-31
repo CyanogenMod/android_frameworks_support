@@ -99,7 +99,7 @@ public class LiveFolder {
 
         if (folderItems == null) {
             errorMsg = "Folder items not specified";
-        } else if (folderItems.size() > 9) {
+        } else if (folderItems.size() > Constants.MAX_ITEMS) {
             errorMsg = "Folder cannot contain more than " + Constants.MAX_ITEMS;
         } else if (folderId <= 0 && !updateAll) {
             errorMsg = "Invalid folder id " + folderId;

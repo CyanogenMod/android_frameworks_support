@@ -32,8 +32,9 @@ include $(BUILD_STATIC_JAVA_LIBRARY)
 #$(call dist-for-goals, dist_files, $(LOCAL_BUILT_MODULE):volley.jar)
 
 # TODO: Build the tests as an APK here
-
+ifneq ($(WITH_GMS),true)
 include $(call all-makefiles-under, $(LOCAL_PATH))
+endif
 
 endif
 

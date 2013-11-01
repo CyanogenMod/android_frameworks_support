@@ -1849,6 +1849,7 @@ public class ViewPager extends ViewGroup {
                 if (xDiff > mTouchSlop && xDiff * 0.5f > yDiff) {
                     if (DEBUG) Log.v(TAG, "Starting drag!");
                     mIsBeingDragged = true;
+                    requestParentDisallowInterceptTouchEvent(true);
                     setScrollState(SCROLL_STATE_DRAGGING);
                     mLastMotionX = dx > 0 ? mInitialMotionX + mTouchSlop :
                             mInitialMotionX - mTouchSlop;
@@ -1889,6 +1890,7 @@ public class ViewPager extends ViewGroup {
                     mPopulatePending = false;
                     populate();
                     mIsBeingDragged = true;
+                    requestParentDisallowInterceptTouchEvent(true);
                     setScrollState(SCROLL_STATE_DRAGGING);
                 } else {
                     completeScroll(false);
@@ -1951,8 +1953,6 @@ public class ViewPager extends ViewGroup {
                 mScroller.abortAnimation();
                 mPopulatePending = false;
                 populate();
-                mIsBeingDragged = true;
-                setScrollState(SCROLL_STATE_DRAGGING);
 
                 // Remember where the motion event started
                 mLastMotionX = mInitialMotionX = ev.getX();
@@ -1971,11 +1971,18 @@ public class ViewPager extends ViewGroup {
                     if (xDiff > mTouchSlop && xDiff > yDiff) {
                         if (DEBUG) Log.v(TAG, "Starting drag!");
                         mIsBeingDragged = true;
+                        requestParentDisallowInterceptTouchEvent(true);
                         mLastMotionX = x - mInitialMotionX > 0 ? mInitialMotionX + mTouchSlop :
                                 mInitialMotionX - mTouchSlop;
                         mLastMotionY = y;
                         setScrollState(SCROLL_STATE_DRAGGING);
                         setScrollingCacheEnabled(true);
+
+                        // Disallow Parent Intercept, just in case
+                        ViewParent parent = getParent();
+                        if (parent != null) {
+                            parent.requestDisallowInterceptTouchEvent(true);
+                        }
                     }
                 }
                 // Not else! Note that mIsBeingDragged can be set above.
@@ -2037,6 +2044,13 @@ public class ViewPager extends ViewGroup {
             ViewCompat.postInvalidateOnAnimation(this);
         }
         return true;
+    }
+
+    private void requestParentDisallowInterceptTouchEvent(boolean disallowIntercept) {
+        final ViewParent parent = getParent();
+        if (parent != null) {
+            parent.requestDisallowInterceptTouchEvent(disallowIntercept);
+        }
     }
 
     private boolean performDrag(float x) {
@@ -2406,6 +2420,22 @@ public class ViewPager extends ViewGroup {
         }
     }
 
+    public boolean canScrollHorizontally(int direction) {
+        if (mAdapter == null) {
+            return false;
+        }
+
+        final int width = getClientWidth();
+        final int scrollX = getScrollX();
+        if (direction < 0) {
+            return (scrollX > (int) (width * mFirstOffset));
+        } else if (direction > 0) {
+            return (scrollX < (int) (width * mLastOffset));
+        } else {
+            return false;
+        }
+    }
+
     /**
      * Tests scrollability within child views of v given a delta of dx.
      *
@@ -2748,10 +2778,10 @@ public class ViewPager extends ViewGroup {
             super.onInitializeAccessibilityNodeInfo(host, info);
             info.setClassName(ViewPager.class.getName());
             info.setScrollable(canScroll());
-            if (canScrollForward()) {
+            if (canScrollHorizontally(1)) {
                 info.addAction(AccessibilityNodeInfoCompat.ACTION_SCROLL_FORWARD);
             }
-            if (canScrollBackward()) {
+            if (canScrollHorizontally(-1)) {
                 info.addAction(AccessibilityNodeInfoCompat.ACTION_SCROLL_BACKWARD);
             }
         }
@@ -2763,13 +2793,13 @@ public class ViewPager extends ViewGroup {
             }
             switch (action) {
                 case AccessibilityNodeInfoCompat.ACTION_SCROLL_FORWARD: {
-                    if (canScrollForward()) {
+                    if (canScrollHorizontally(1)) {
                         setCurrentItem(mCurItem + 1);
                         return true;
                     }
                 } return false;
                 case AccessibilityNodeInfoCompat.ACTION_SCROLL_BACKWARD: {
-                    if (canScrollBackward()) {
+                    if (canScrollHorizontally(-1)) {
                         setCurrentItem(mCurItem - 1);
                         return true;
                     }
@@ -2780,14 +2810,6 @@ public class ViewPager extends ViewGroup {
 
         private boolean canScroll() {
             return (mAdapter != null) && (mAdapter.getCount() > 1);
-        }
-
-        private boolean canScrollForward() {
-            return (mAdapter != null) && (mCurItem >= 0) && (mCurItem < (mAdapter.getCount() - 1));
-        }
-
-        private boolean canScrollBackward() {
-            return (mAdapter != null) && (mCurItem > 0) && (mCurItem < mAdapter.getCount());
         }
     }
 

@@ -20,7 +20,6 @@ import android.app.Activity;
 import android.content.Context;
 import android.graphics.drawable.Drawable;
 import android.support.v4.app.FragmentTransaction;
-import android.util.Log;
 import android.view.View;
 import android.widget.SpinnerAdapter;
 
@@ -33,13 +32,27 @@ class ActionBarImplICS extends ActionBar {
     final Callback mCallback;
     final android.app.ActionBar mActionBar;
 
+    FragmentTransaction mActiveTransaction;
+
     private ArrayList<WeakReference<OnMenuVisibilityListenerWrapper>> mAddedMenuVisWrappers =
             new ArrayList<WeakReference<OnMenuVisibilityListenerWrapper>>();
 
     public ActionBarImplICS(Activity activity, Callback callback) {
+        this(activity, callback, true);
+    }
+
+    ActionBarImplICS(Activity activity, Callback callback, boolean checkHomeAsUpOption) {
         mActivity = activity;
         mCallback = callback;
         mActionBar = activity.getActionBar();
+
+        if (checkHomeAsUpOption) {
+            // In v4.1+, if the the 'homeAsUp' display flag was set then the Home Button is enabled.
+            // We need to replicate this functionality on ICS.
+            if ((getDisplayOptions() & ActionBar.DISPLAY_HOME_AS_UP) != 0) {
+                setHomeButtonEnabled(true);
+            }
+        }
     }
 
     private OnMenuVisibilityListenerWrapper findAndRemoveMenuVisWrapper(
@@ -309,6 +322,26 @@ class ActionBarImplICS extends ActionBar {
         mActionBar.removeOnMenuVisibilityListener(l);
     }
 
+    @Override
+    public void setHomeButtonEnabled(boolean enabled) {
+        mActionBar.setHomeButtonEnabled(enabled);
+    }
+
+    FragmentTransaction getActiveTransaction() {
+        if (mActiveTransaction == null) {
+            mActiveTransaction = mCallback.getSupportFragmentManager().beginTransaction()
+                    .disallowAddToBackStack();
+        }
+        return mActiveTransaction;
+    }
+
+    void commitActiveTransaction() {
+        if (mActiveTransaction != null && !mActiveTransaction.isEmpty()) {
+            mActiveTransaction.commit();
+        }
+        mActiveTransaction = null;
+    }
+
     static class OnNavigationListenerWrapper implements android.app.ActionBar.OnNavigationListener {
 
         private final OnNavigationListener mWrappedListener;
@@ -341,10 +374,8 @@ class ActionBarImplICS extends ActionBar {
     }
 
     class TabWrapper extends ActionBar.Tab implements android.app.ActionBar.TabListener {
-
         final android.app.ActionBar.Tab mWrappedTab;
         private Object mTag;
-        private FragmentTransaction mActiveTransaction;
         private CharSequence mContentDescription;
         private TabListener mTabListener;
 
@@ -466,21 +497,6 @@ class ActionBarImplICS extends ActionBar {
                 android.app.FragmentTransaction ft) {
             mTabListener.onTabReselected(this, ft != null ? getActiveTransaction() : null);
             commitActiveTransaction();
-        }
-
-        private FragmentTransaction getActiveTransaction() {
-            if (mActiveTransaction == null) {
-                mActiveTransaction = mCallback.getSupportFragmentManager().beginTransaction()
-                        .disallowAddToBackStack();
-            }
-            return mActiveTransaction;
-        }
-
-        private void commitActiveTransaction() {
-            if (mActiveTransaction != null && !mActiveTransaction.isEmpty()) {
-                mActiveTransaction.commit();
-            }
-            mActiveTransaction = null;
         }
     }
 }

@@ -17,55 +17,13 @@
 */
 -->
 <android.support.v7.internal.widget.LinearLayoutICS
-        xmlns:android="http://schemas.android.com/apk/res/android"
-        android:id="@+id/activity_chooser_view_content"
-        android:layout_width="wrap_content"
-        android:layout_height="match_parent"
-        android:layout_gravity="center"
-        style="?attr/activityChooserViewStyle">
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/activity_chooser_view_content"
+    android:layout_width="wrap_content"
+    android:layout_height="match_parent"
+    android:layout_gravity="center"
+    style="?attr/activityChooserViewStyle">
 
-    <FrameLayout
-            android:id="@+id/expand_activities_button"
-            android:layout_width="wrap_content"
-            android:layout_height="match_parent"
-            android:layout_gravity="center"
-            android:focusable="true"
-            android:addStatesFromChildren="true"
-            android:background="?attr/actionBarItemBackground">
-
-        <ImageView android:id="@+id/image"
-                   android:layout_width="56dip"
-                   android:layout_height="36dip"
-                   android:layout_gravity="center"
-                   android:paddingTop="2dip"
-                   android:paddingBottom="2dip"
-                   android:paddingLeft="12dip"
-                   android:paddingRight="12dip"
-                   android:scaleType="fitCenter"
-                   android:adjustViewBounds="true"/>
-
-    </FrameLayout>
-
-    <FrameLayout
-            android:id="@+id/default_activity_button"
-            android:layout_width="wrap_content"
-            android:layout_height="match_parent"
-            android:layout_gravity="center"
-            android:focusable="true"
-            android:addStatesFromChildren="true"
-            android:background="?attr/actionBarItemBackground">
-
-        <ImageView android:id="@+id/image"
-                   android:layout_width="56dip"
-                   android:layout_height="36dip"
-                   android:layout_gravity="center"
-                   android:paddingTop="2dip"
-                   android:paddingBottom="2dip"
-                   android:paddingLeft="12dip"
-                   android:paddingRight="12dip"
-                   android:scaleType="fitCenter"
-                   android:adjustViewBounds="true"/>
-
-    </FrameLayout>
+    <include layout="@layout/abc_activity_chooser_view_include" />
 
 </android.support.v7.internal.widget.LinearLayoutICS>

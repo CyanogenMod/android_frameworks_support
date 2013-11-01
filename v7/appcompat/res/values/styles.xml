@@ -177,6 +177,13 @@
            parent="TextAppearance.Widget.AppCompat.Base.ExpandedMenu.Item">
     </style>
 
+    <style name="Widget.AppCompat.ListPopupWindow" parent="Widget.AppCompat.Base.ListPopupWindow">
+    </style>
+
+    <style name="Widget.AppCompat.Light.ListPopupWindow"
+           parent="Widget.AppCompat.Light.Base.ListPopupWindow">
+    </style>
+
     <style name="Widget.AppCompat.PopupMenu" parent="Widget.AppCompat.Base.PopupMenu">
     </style>
 
@@ -224,7 +231,7 @@
     </style>
 
     <style name="Widget.AppCompat.Light.AutoCompleteTextView"
-           parent="Widget.AppCompat.Base.AutoCompleteTextView">
+           parent="Widget.AppCompat.Light.Base.AutoCompleteTextView">
     </style>
 
     <style name="Widget.AppCompat.ActivityChooserView"

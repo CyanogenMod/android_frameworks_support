@@ -24,6 +24,7 @@ import android.content.res.TypedArray;
 import android.os.Build;
 import android.os.Bundle;
 import android.support.v4.app.ActionBarDrawerToggle;
+import android.support.v4.app.NavUtils;
 import android.support.v7.appcompat.R;
 import android.support.v7.internal.view.SupportMenuInflater;
 import android.support.v7.view.ActionMode;
@@ -43,7 +44,9 @@ abstract class ActionBarActivityDelegate {
 
     static ActionBarActivityDelegate createDelegate(ActionBarActivity activity) {
         final int version = Build.VERSION.SDK_INT;
-        if (version >= Build.VERSION_CODES.ICE_CREAM_SANDWICH) {
+        if (version >= Build.VERSION_CODES.JELLY_BEAN) {
+            return new ActionBarActivityDelegateJB(activity);
+        } else if (version >= Build.VERSION_CODES.ICE_CREAM_SANDWICH) {
             return new ActionBarActivityDelegateICS(activity);
         } else if (version >= Build.VERSION_CODES.HONEYCOMB) {
             return new ActionBarActivityDelegateHC(activity);
@@ -62,6 +65,8 @@ abstract class ActionBarActivityDelegate {
     // true if this activity's action bar overlays other activity content.
     boolean mOverlayActionBar;
 
+    private boolean mEnableDefaultActionBarUp;
+
     ActionBarActivityDelegate(ActionBarActivity activity) {
         mActivity = activity;
     }
@@ -74,6 +79,10 @@ abstract class ActionBarActivityDelegate {
         if (mHasActionBar || mOverlayActionBar) {
             if (mActionBar == null) {
                 mActionBar = createSupportActionBar();
+
+                if (mEnableDefaultActionBarUp) {
+                    mActionBar.setDisplayHomeAsUpEnabled(true);
+                }
             }
         } else {
             // If we're not set to have a Action Bar, null it just in case it's been set
@@ -106,6 +115,14 @@ abstract class ActionBarActivityDelegate {
         mHasActionBar = a.getBoolean(R.styleable.ActionBarWindow_windowActionBar, false);
         mOverlayActionBar = a.getBoolean(R.styleable.ActionBarWindow_windowActionBarOverlay, false);
         a.recycle();
+
+        if (NavUtils.getParentActivityName(mActivity) != null) {
+            if (mActionBar == null) {
+                mEnableDefaultActionBarUp = true;
+            } else {
+                mActionBar.setDisplayHomeAsUpEnabled(true);
+            }
+        }
     }
 
     abstract void onConfigurationChanged(Configuration newConfig);
@@ -133,6 +150,16 @@ abstract class ActionBarActivityDelegate {
 
     abstract boolean onPreparePanel(int featureId, View view, Menu menu);
 
+    boolean onPrepareOptionsPanel(View view, Menu menu) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN) {
+            // Call straight through to onPrepareOptionsMenu, bypassing super.onPreparePanel().
+            // This is because Activity.onPreparePanel() on <v4.1 calls menu.hasVisibleItems(),
+            // which interferes with the initially invisible items.
+            return mActivity.onPrepareOptionsMenu(menu);
+        }
+        return mActivity.superOnPrepareOptionsPanel(view, menu);
+    }
+
     abstract boolean onCreatePanelMenu(int featureId, Menu menu);
 
     abstract boolean onMenuItemSelected(int featureId, MenuItem item);
@@ -150,6 +177,8 @@ abstract class ActionBarActivityDelegate {
     abstract void setSupportProgress(int progress);
 
     abstract ActionBarDrawerToggle.Delegate getDrawerToggleDelegate();
+
+    abstract void onContentChanged();
 
     protected final String getUiOptionsFromMetadata() {
         try {

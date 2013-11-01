@@ -33,7 +33,6 @@ import android.support.v7.internal.widget.ActionBarContextView;
 import android.support.v7.internal.widget.ActionBarView;
 import android.support.v7.internal.widget.ProgressBarICS;
 import android.support.v7.view.ActionMode;
-import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -57,6 +56,8 @@ class ActionBarActivityDelegateBase extends ActionBarActivityDelegate implements
 
     // true if we have installed a window sub-decor layout.
     private boolean mSubDecorInstalled;
+
+    private CharSequence mTitleToSet;
 
     // Used to keep track of Progress Bar Window features
     private boolean mFeatureProgress, mFeatureIndeterminateProgress;
@@ -119,52 +120,56 @@ class ActionBarActivityDelegateBase extends ActionBarActivityDelegate implements
     public void setContentView(View v) {
         ensureSubDecor();
         if (mHasActionBar) {
-            final ViewGroup contentParent =
-                    (ViewGroup) mActivity.findViewById(R.id.action_bar_activity_content);
+            ViewGroup contentParent = (ViewGroup) mActivity.findViewById(android.R.id.content);
             contentParent.removeAllViews();
             contentParent.addView(v);
         } else {
             mActivity.superSetContentView(v);
         }
+        mActivity.onSupportContentChanged();
     }
 
     @Override
     public void setContentView(int resId) {
         ensureSubDecor();
         if (mHasActionBar) {
-            final ViewGroup contentParent =
-                    (ViewGroup) mActivity.findViewById(R.id.action_bar_activity_content);
+            ViewGroup contentParent = (ViewGroup) mActivity.findViewById(android.R.id.content);
             contentParent.removeAllViews();
-            final LayoutInflater inflater = mActivity.getLayoutInflater();
-            inflater.inflate(resId, contentParent);
+            mActivity.getLayoutInflater().inflate(resId, contentParent);
         } else {
             mActivity.superSetContentView(resId);
         }
+        mActivity.onSupportContentChanged();
     }
 
     @Override
     public void setContentView(View v, ViewGroup.LayoutParams lp) {
         ensureSubDecor();
         if (mHasActionBar) {
-            final ViewGroup contentParent =
-                    (ViewGroup) mActivity.findViewById(R.id.action_bar_activity_content);
+            ViewGroup contentParent = (ViewGroup) mActivity.findViewById(android.R.id.content);
             contentParent.removeAllViews();
             contentParent.addView(v, lp);
         } else {
             mActivity.superSetContentView(v, lp);
         }
+        mActivity.onSupportContentChanged();
     }
 
     @Override
     public void addContentView(View v, ViewGroup.LayoutParams lp) {
         ensureSubDecor();
         if (mHasActionBar) {
-            final ViewGroup contentParent =
-                    (ViewGroup) mActivity.findViewById(R.id.action_bar_activity_content);
+            ViewGroup contentParent = (ViewGroup) mActivity.findViewById(android.R.id.content);
             contentParent.addView(v, lp);
         } else {
             mActivity.superSetContentView(v, lp);
         }
+        mActivity.onSupportContentChanged();
+    }
+
+    @Override
+    public void onContentChanged() {
+        // Ignore all calls to this method as we call onSupportContentChanged manually above
     }
 
     final void ensureSubDecor() {
@@ -218,8 +223,20 @@ class ActionBarActivityDelegateBase extends ActionBarActivityDelegate implements
                 cab.setSplitWhenNarrow(splitWhenNarrow);
             }
 
-            mSubDecorInstalled = true;
+            // Change our content FrameLayout to use the android.R.id.content id.
+            // Useful for fragments.
+            View content = mActivity.findViewById(android.R.id.content);
+            content.setId(View.NO_ID);
+            View abcContent = mActivity.findViewById(R.id.action_bar_activity_content);
+            abcContent.setId(android.R.id.content);
 
+            // A title was set before we've install the decor so set it now.
+            if (mTitleToSet != null) {
+                mActionBarView.setWindowTitle(mTitleToSet);
+                mTitleToSet  = null;
+            }
+
+            mSubDecorInstalled = true;
             supportInvalidateOptionsMenu();
         }
     }
@@ -248,6 +265,8 @@ class ActionBarActivityDelegateBase extends ActionBarActivityDelegate implements
     public void onTitleChanged(CharSequence title) {
         if (mActionBarView != null) {
             mActionBarView.setWindowTitle(title);
+        } else {
+            mTitleToSet = title;
         }
     }
 
@@ -270,14 +289,14 @@ class ActionBarActivityDelegateBase extends ActionBarActivityDelegate implements
 
                     // Make sure we're not dispatching item changes to presenters
                     menu.stopDispatchingItemsChanged();
-                    // Dispatch onCreateSupportOptionsMenu
+                    // Dispatch onCreateOptionsMenu
                     show = mActivity.superOnCreatePanelMenu(Window.FEATURE_OPTIONS_PANEL, menu);
                 }
 
                 if (show) {
                     // Make sure we're not dispatching item changes to presenters
                     menu.stopDispatchingItemsChanged();
-                    // Dispatch onPrepareSupportOptionsMenu
+                    // Dispatch onPrepareOptionsMenu
                     show = mActivity.superOnPreparePanel(Window.FEATURE_OPTIONS_PANEL, null, menu);
                 }
             }

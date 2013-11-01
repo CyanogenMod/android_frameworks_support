@@ -25,6 +25,7 @@ import android.content.res.Resources;
 import android.os.Bundle;
 import android.os.Parcel;
 import android.os.Parcelable;
+import android.support.v4.util.SimpleArrayMap;
 import android.support.v4.util.DebugUtils;
 import android.util.AttributeSet;
 import android.util.Log;
@@ -43,7 +44,6 @@ import android.widget.AdapterView;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
-import java.util.HashMap;
 
 final class FragmentState implements Parcelable {
     final String mClassName;
@@ -149,12 +149,20 @@ final class FragmentState implements Parcelable {
  * Static library support version of the framework's {@link android.app.Fragment}.
  * Used to write apps that run on platforms prior to Android 3.0.  When running
  * on Android 3.0 or above, this implementation is still used; it does not try
- * to switch to the framework's implementation. See the framework SDK
+ * to switch to the framework's implementation. See the framework {@link android.app.Fragment}
  * documentation for a class overview.
+ *
+ * <p>The main differences when using this support version instead of the framework version are:
+ * <ul>
+ *  <li>Your activity must extend {@link FragmentActivity}
+ *  <li>You must call {@link FragmentActivity#getSupportFragmentManager} to get the
+ *  {@link FragmentManager}
+ * </ul>
+ *
  */
 public class Fragment implements ComponentCallbacks, OnCreateContextMenuListener {
-    private static final HashMap<String, Class<?>> sClassMap =
-            new HashMap<String, Class<?>>();
+    private static final SimpleArrayMap<String, Class<?>> sClassMap =
+            new SimpleArrayMap<String, Class<?>>();
     
     static final int INITIALIZING = 0;     // Not yet created.
     static final int CREATED = 1;          // Created.
@@ -409,6 +417,28 @@ public class Fragment implements ComponentCallbacks, OnCreateContextMenuListener
             throw new InstantiationException("Unable to instantiate fragment " + fname
                     + ": make sure class name exists, is public, and has an"
                     + " empty constructor that is public", e);
+        }
+    }
+
+    /**
+     * Determine if the given fragment name is a support library fragment class.
+     *
+     * @param context Context used to determine the correct ClassLoader to use
+     * @param fname Class name of the fragment to test
+     * @return true if <code>fname</code> is <code>android.support.v4.app.Fragment</code>
+     *         or a subclass, false otherwise.
+     */
+    static boolean isSupportFragmentClass(Context context, String fname) {
+        try {
+            Class<?> clazz = sClassMap.get(fname);
+            if (clazz == null) {
+                // Class not found in the cache, see if it's real, and try to add it
+                clazz = context.getClassLoader().loadClass(fname);
+                sClassMap.put(fname, clazz);
+            }
+            return Fragment.class.isAssignableFrom(clazz);
+        } catch (ClassNotFoundException e) {
+            return false;
         }
     }
     

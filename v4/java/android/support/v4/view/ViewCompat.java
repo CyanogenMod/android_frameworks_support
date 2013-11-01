@@ -17,7 +17,9 @@
 package android.support.v4.view;
 
 import android.graphics.Paint;
+import android.graphics.PixelFormat;
 import android.graphics.Rect;
+import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.support.v4.view.accessibility.AccessibilityNodeInfoCompat;
 import android.support.v4.view.accessibility.AccessibilityNodeProviderCompat;
@@ -63,6 +65,37 @@ public class ViewCompat {
      * The view is not important for accessibility.
      */
     public static final int IMPORTANT_FOR_ACCESSIBILITY_NO = 0x00000002;
+
+    /**
+     * The view is not important for accessibility, nor are any of its
+     * descendant views.
+     */
+    public static final int IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS = 0x00000004;
+
+    /**
+     * Live region mode specifying that accessibility services should not
+     * automatically announce changes to this view. This is the default live
+     * region mode for most views.
+     * <p>
+     * Use with {@link ViewCompat#setAccessibilityLiveRegion(View, int)}.
+     */
+    public static final int ACCESSIBILITY_LIVE_REGION_NONE = 0x00000000;
+
+    /**
+     * Live region mode specifying that accessibility services should announce
+     * changes to this view.
+     * <p>
+     * Use with {@link ViewCompat#setAccessibilityLiveRegion(View, int)}.
+     */
+    public static final int ACCESSIBILITY_LIVE_REGION_POLITE = 0x00000001;
+
+    /**
+     * Live region mode specifying that accessibility services should interrupt
+     * ongoing speech to immediately announce changes to this view.
+     * <p>
+     * Use with {@link ViewCompat#setAccessibilityLiveRegion(View, int)}.
+     */
+    public static final int ACCESSIBILITY_LIVE_REGION_ASSERTIVE = 0x00000002;
 
     /**
      * Indicates that the view does not have a layer.
@@ -134,6 +167,33 @@ public class ViewCompat {
      */
     public static final int LAYOUT_DIRECTION_LOCALE = 3;
 
+    /**
+     * Bits of {@link #getMeasuredWidthAndState} and
+     * {@link #getMeasuredWidthAndState} that provide the actual measured size.
+     */
+    public static final int MEASURED_SIZE_MASK = 0x00ffffff;
+
+    /**
+     * Bits of {@link #getMeasuredWidthAndState} and
+     * {@link #getMeasuredWidthAndState} that provide the additional state bits.
+     */
+    public static final int MEASURED_STATE_MASK = 0xff000000;
+
+    /**
+     * Bit shift of {@link #MEASURED_STATE_MASK} to get to the height bits
+     * for functions that combine both width and height into a single int,
+     * such as {@link #getMeasuredState} and the childState argument of
+     * {@link #resolveSizeAndState(int, int, int)}.
+     */
+    public static final int MEASURED_HEIGHT_STATE_SHIFT = 16;
+
+    /**
+     * Bit of {@link #getMeasuredWidthAndState} and
+     * {@link #getMeasuredWidthAndState} that indicates the measured size
+     * is smaller that the space the view would like to have.
+     */
+    public static final int MEASURED_STATE_TOO_SMALL = 0x01000000;
+
     interface ViewCompatImpl {
         public boolean canScrollHorizontally(View v, int direction);
         public boolean canScrollVertically(View v, int direction);
@@ -153,6 +213,7 @@ public class ViewCompat {
         public void setImportantForAccessibility(View view, int mode);
         public boolean performAccessibilityAction(View view, int action, Bundle arguments);
         public AccessibilityNodeProviderCompat getAccessibilityNodeProvider(View view);
+        public float getAlpha(View view);
         public void setLayerType(View view, int layerType, Paint paint);
         public int getLayerType(View view);
         public int getLabelFor(View view);
@@ -161,6 +222,13 @@ public class ViewCompat {
         public int getLayoutDirection(View view);
         public void setLayoutDirection(View view, int layoutDirection);
         public ViewParent getParentForAccessibility(View view);
+        public boolean isOpaque(View view);
+        public int resolveSizeAndState(int size, int measureSpec, int childMeasuredState);
+        public int getMeasuredWidthAndState(View view);
+        public int getMeasuredHeightAndState(View view);
+        public int getMeasuredState(View view);
+        public int getAccessibilityLiveRegion(View view);
+        public void setAccessibilityLiveRegion(View view, int mode);
     }
 
     static class BaseViewCompatImpl implements ViewCompatImpl {
@@ -222,6 +290,9 @@ public class ViewCompat {
         public AccessibilityNodeProviderCompat getAccessibilityNodeProvider(View view) {
             return null;
         }
+        public float getAlpha(View view) {
+            return 1.0f;
+        }
         public void setLayerType(View view, int layerType, Paint paint) {
             // No-op until layers became available (HC)
         }
@@ -252,9 +323,54 @@ public class ViewCompat {
         public ViewParent getParentForAccessibility(View view) {
             return view.getParent();
         }
+
+        @Override
+        public boolean isOpaque(View view) {
+            final Drawable bg = view.getBackground();
+            if (bg != null) {
+                return bg.getOpacity() == PixelFormat.OPAQUE;
+            }
+            return false;
+        }
+
+        public int resolveSizeAndState(int size, int measureSpec, int childMeasuredState) {
+            return View.resolveSize(size, measureSpec);
+        }
+
+        @Override
+        public int getMeasuredWidthAndState(View view) {
+            return view.getMeasuredWidth();
+        }
+
+        @Override
+        public int getMeasuredHeightAndState(View view) {
+            return view.getMeasuredHeight();
+        }
+
+        @Override
+        public int getMeasuredState(View view) {
+            return 0;
+        }
+
+        @Override
+        public int getAccessibilityLiveRegion(View view) {
+            return ACCESSIBILITY_LIVE_REGION_NONE;
+        }
+
+        @Override
+        public void setAccessibilityLiveRegion(View view, int mode) {
+            // No-op
+        }
     }
 
-    static class GBViewCompatImpl extends BaseViewCompatImpl {
+    static class EclairMr1ViewCompatImpl extends BaseViewCompatImpl {
+        @Override
+        public boolean isOpaque(View view) {
+            return ViewCompatEclairMr1.isOpaque(view);
+        }
+    }
+
+    static class GBViewCompatImpl extends EclairMr1ViewCompatImpl {
         @Override
         public int getOverScrollMode(View v) {
             return ViewCompatGingerbread.getOverScrollMode(v);
@@ -266,13 +382,20 @@ public class ViewCompat {
     }
 
     static class HCViewCompatImpl extends GBViewCompatImpl {
+        @Override
         long getFrameTime() {
             return ViewCompatHC.getFrameTime();
         }
-        @Override public void setLayerType(View view, int layerType, Paint paint) {
+        @Override
+        public float getAlpha(View view) {
+            return ViewCompatHC.getAlpha(view);
+        }
+        @Override
+        public void setLayerType(View view, int layerType, Paint paint) {
             ViewCompatHC.setLayerType(view, layerType, paint);
         }
-        @Override public int getLayerType(View view)  {
+        @Override
+        public int getLayerType(View view)  {
             return ViewCompatHC.getLayerType(view);
         }
         @Override
@@ -282,6 +405,22 @@ public class ViewCompat {
             setLayerType(view, getLayerType(view), paint);
             // This is expensive, but the only way to accomplish this before JB-MR1.
             view.invalidate();
+        }
+        @Override
+        public int resolveSizeAndState(int size, int measureSpec, int childMeasuredState) {
+            return ViewCompatHC.resolveSizeAndState(size, measureSpec, childMeasuredState);
+        }
+        @Override
+        public int getMeasuredWidthAndState(View view) {
+            return ViewCompatHC.getMeasuredWidthAndState(view);
+        }
+        @Override
+        public int getMeasuredHeightAndState(View view) {
+            return ViewCompatHC.getMeasuredHeightAndState(view);
+        }
+        @Override
+        public int getMeasuredState(View view) {
+            return ViewCompatHC.getMeasuredState(view);
         }
     }
 
@@ -392,10 +531,24 @@ public class ViewCompat {
         }
     }
 
+    static class KitKatViewCompatImpl extends JbMr1ViewCompatImpl {
+        @Override
+        public int getAccessibilityLiveRegion(View view) {
+            return ViewCompatKitKat.getAccessibilityLiveRegion(view);
+        }
+
+        @Override
+        public void setAccessibilityLiveRegion(View view, int mode) {
+            ViewCompatKitKat.setAccessibilityLiveRegion(view, mode);
+        }
+    }
+
     static final ViewCompatImpl IMPL;
     static {
         final int version = android.os.Build.VERSION.SDK_INT;
-        if (version >= 17) {
+        if (version >= 19) {
+            IMPL = new KitKatViewCompatImpl();
+        } else if (version >= 17) {
             IMPL = new JbMr1ViewCompatImpl();
         } else if (version >= 16) {
             IMPL = new JBViewCompatImpl();
@@ -677,6 +830,7 @@ public class ViewCompat {
      *
      * @see #IMPORTANT_FOR_ACCESSIBILITY_YES
      * @see #IMPORTANT_FOR_ACCESSIBILITY_NO
+     * @see #IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
      * @see #IMPORTANT_FOR_ACCESSIBILITY_AUTO
      */
     public static int getImportantForAccessibility(View view) {
@@ -693,6 +847,7 @@ public class ViewCompat {
      *
      * @see #IMPORTANT_FOR_ACCESSIBILITY_YES
      * @see #IMPORTANT_FOR_ACCESSIBILITY_NO
+     * @see #IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
      * @see #IMPORTANT_FOR_ACCESSIBILITY_AUTO
      */
     public static void setImportantForAccessibility(View view, int mode) {
@@ -730,7 +885,7 @@ public class ViewCompat {
      * </p>
      * <p>
      * If an {@link AccessibilityDelegateCompat} has been specified via calling
-     * {@link #setAccessibilityDelegate(View, AccessibilityDelegateCompat) its
+     * {@link #setAccessibilityDelegate(View, AccessibilityDelegateCompat)} its
      * {@link AccessibilityDelegateCompat#getAccessibilityNodeProvider(View)}
      * is responsible for handling this call.
      * </p>
@@ -742,6 +897,17 @@ public class ViewCompat {
      */
     public static AccessibilityNodeProviderCompat getAccessibilityNodeProvider(View view) {
         return IMPL.getAccessibilityNodeProvider(view);
+    }
+
+    /**
+     * The opacity of the view. This is a value from 0 to 1, where 0 means the view is
+     * completely transparent and 1 means the view is completely opaque.
+     *
+     * <p>By default this is 1.0f. Prior to API 11, the returned value is always 1.0f.
+     * @return The opacity of the view.
+     */
+    public static float getAlpha(View view) {
+        return IMPL.getAlpha(view);
     }
 
     /**
@@ -907,5 +1073,118 @@ public class ViewCompat {
      */
     public static ViewParent getParentForAccessibility(View view) {
         return IMPL.getParentForAccessibility(view);
+    }
+
+    /**
+     * Indicates whether this View is opaque. An opaque View guarantees that it will
+     * draw all the pixels overlapping its bounds using a fully opaque color.
+     *
+     * On API 7 and above this will call View's true isOpaque method. On previous platform
+     * versions it will check the opacity of the view's background drawable if present.
+     *
+     * @return True if this View is guaranteed to be fully opaque, false otherwise.
+     */
+    public static boolean isOpaque(View view) {
+        return IMPL.isOpaque(view);
+    }
+
+    /**
+     * Utility to reconcile a desired size and state, with constraints imposed
+     * by a MeasureSpec.  Will take the desired size, unless a different size
+     * is imposed by the constraints.  The returned value is a compound integer,
+     * with the resolved size in the {@link #MEASURED_SIZE_MASK} bits and
+     * optionally the bit {@link #MEASURED_STATE_TOO_SMALL} set if the resulting
+     * size is smaller than the size the view wants to be.
+     *
+     * @param size How big the view wants to be
+     * @param measureSpec Constraints imposed by the parent
+     * @return Size information bit mask as defined by
+     * {@link #MEASURED_SIZE_MASK} and {@link #MEASURED_STATE_TOO_SMALL}.
+     */
+    public static int resolveSizeAndState(int size, int measureSpec, int childMeasuredState) {
+        return IMPL.resolveSizeAndState(size, measureSpec, childMeasuredState);
+    }
+
+    /**
+     * Return the full width measurement information for this view as computed
+     * by the most recent call to {@link android.view.View#measure(int, int)}.
+     * This result is a bit mask as defined by {@link #MEASURED_SIZE_MASK} and
+     * {@link #MEASURED_STATE_TOO_SMALL}.
+     * This should be used during measurement and layout calculations only. Use
+     * {@link android.view.View#getWidth()} to see how wide a view is after layout.
+     *
+     * @return The measured width of this view as a bit mask.
+     */
+    public static int getMeasuredWidthAndState(View view) {
+        return IMPL.getMeasuredWidthAndState(view);
+    }
+
+    /**
+     * Return the full height measurement information for this view as computed
+     * by the most recent call to {@link android.view.View#measure(int, int)}.
+     * This result is a bit mask as defined by {@link #MEASURED_SIZE_MASK} and
+     * {@link #MEASURED_STATE_TOO_SMALL}.
+     * This should be used during measurement and layout calculations only. Use
+     * {@link android.view.View#getHeight()} to see how wide a view is after layout.
+     *
+     * @return The measured width of this view as a bit mask.
+     */
+    public static int getMeasuredHeightAndState(View view) {
+        return IMPL.getMeasuredHeightAndState(view);
+    }
+
+    /**
+     * Return only the state bits of {@link #getMeasuredWidthAndState}
+     * and {@link #getMeasuredHeightAndState}, combined into one integer.
+     * The width component is in the regular bits {@link #MEASURED_STATE_MASK}
+     * and the height component is at the shifted bits
+     * {@link #MEASURED_HEIGHT_STATE_SHIFT}>>{@link #MEASURED_STATE_MASK}.
+     */
+    public static int getMeasuredState(View view) {
+        return IMPL.getMeasuredState(view);
+    }
+
+    /**
+     * Gets the live region mode for the specified View.
+     *
+     * @param view The view from which to obtain the live region mode
+     * @return The live region mode for the view.
+     *
+     * @see ViewCompat#setAccessibilityLiveRegion(View, int)
+     */
+    public int getAccessibilityLiveRegion(View view) {
+        return IMPL.getAccessibilityLiveRegion(view);
+    }
+
+    /**
+     * Sets the live region mode for the specified view. This indicates to
+     * accessibility services whether they should automatically notify the user
+     * about changes to the view's content description or text, or to the
+     * content descriptions or text of the view's children (where applicable).
+     * <p>
+     * For example, in a login screen with a TextView that displays an "incorrect
+     * password" notification, that view should be marked as a live region with
+     * mode {@link #ACCESSIBILITY_LIVE_REGION_POLITE}.
+     * <p>
+     * To disable change notifications for this view, use
+     * {@link #ACCESSIBILITY_LIVE_REGION_NONE}. This is the default live region
+     * mode for most views.
+     * <p>
+     * To indicate that the user should be notified of changes, use
+     * {@link #ACCESSIBILITY_LIVE_REGION_POLITE}.
+     * <p>
+     * If the view's changes should interrupt ongoing speech and notify the user
+     * immediately, use {@link #ACCESSIBILITY_LIVE_REGION_ASSERTIVE}.
+     *
+     * @param view The view on which to set the live region mode
+     * @param mode The live region mode for this view, one of:
+     *        <ul>
+     *        <li>{@link #ACCESSIBILITY_LIVE_REGION_NONE}
+     *        <li>{@link #ACCESSIBILITY_LIVE_REGION_POLITE}
+     *        <li>{@link #ACCESSIBILITY_LIVE_REGION_ASSERTIVE}
+     *        </ul>
+     */
+    public void setAccessibilityLiveRegion(View view, int mode) {
+        IMPL.setAccessibilityLiveRegion(view, mode);
     }
 }

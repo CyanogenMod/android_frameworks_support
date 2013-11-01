@@ -27,15 +27,9 @@ LOCAL_SRC_FILES := $(call all-java-files-under, java/src)
 
 include $(BUILD_STATIC_JAVA_LIBRARY)
 
-# Include this library in the build server's output directory
-# TODO: Not yet.
-#$(call dist-for-goals, dist_files, $(LOCAL_BUILT_MODULE):volley.jar)
-
 # TODO: Build the tests as an APK here
 ifneq ($(WITH_GMS),true)
 include $(call all-makefiles-under, $(LOCAL_PATH))
 endif
 
 endif
-
-

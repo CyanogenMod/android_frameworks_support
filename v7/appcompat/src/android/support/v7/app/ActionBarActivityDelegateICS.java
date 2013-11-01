@@ -122,6 +122,12 @@ class ActionBarActivityDelegateICS extends ActionBarActivityDelegate {
     }
 
     @Override
+    public void onContentChanged() {
+        // Call straight through to the support version of the method
+        mActivity.onSupportContentChanged();
+    }
+
+    @Override
     public boolean supportRequestWindowFeature(int featureId) {
         return mActivity.requestWindowFeature(featureId);
     }
@@ -179,8 +185,7 @@ class ActionBarActivityDelegateICS extends ActionBarActivityDelegate {
         android.view.ActionMode frameworkMode = mActivity.startActionMode(wrappedCallback);
 
         if (frameworkMode != null) {
-            wrappedMode = new ActionModeWrapper(context,
-                    mActivity.startActionMode(wrappedCallback));
+            wrappedMode = new ActionModeWrapper(context, frameworkMode);
             wrappedCallback.setLastStartedActionMode(wrappedMode);
         }
 

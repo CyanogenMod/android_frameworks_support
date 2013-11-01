@@ -36,7 +36,7 @@ RSG_GENERATOR_SUPPORT:=$(LOCAL_BUILT_MODULE)
 include $(CLEAR_VARS)
 LOCAL_CLANG := true
 LOCAL_MODULE := libRSSupport
-LOCAL_SDK_VERSION := $(rs_base_SDK_VERSION)
+LOCAL_SDK_VERSION := 8
 
 LOCAL_MODULE_CLASS := SHARED_LIBRARIES
 intermediates:= $(local-intermediates-dir)
@@ -79,8 +79,10 @@ LOCAL_GENERATED_SOURCES += $(GEN)
 LOCAL_SRC_FILES:= \
 	rsAdapter.cpp \
 	rsAllocation.cpp \
+	rsCompatibilityLib.cpp \
 	rsComponent.cpp \
 	rsContext.cpp \
+	rsCppUtils.cpp \
 	rsDevice.cpp \
 	rsElement.cpp \
 	rsFifoSocket.cpp \
@@ -117,29 +119,30 @@ LOCAL_SRC_FILES:= \
 	cpu_ref/rsCpuIntrinsicColorMatrix.cpp \
 	cpu_ref/rsCpuIntrinsicConvolve3x3.cpp \
 	cpu_ref/rsCpuIntrinsicConvolve5x5.cpp \
+	cpu_ref/rsCpuIntrinsicHistogram.cpp \
 	cpu_ref/rsCpuIntrinsicLUT.cpp \
 	cpu_ref/rsCpuIntrinsicYuvToRGB.cpp \
 	cpu_ref/rsCpuRuntimeMathFuncs.cpp
 
-ifeq ($(ARCH_ARM_HAVE_NEON),true)
+ifeq ($(ARCH_ARM_HAVE_ARMV7A),true)
+LOCAL_CFLAGS += -DARCH_ARM_HAVE_VFP
+LOCAL_ASFLAGS := -mfpu=neon
 LOCAL_SRC_FILES += \
-	cpu_ref/rsCpuIntrinsics_neon.S
+	cpu_ref/rsCpuIntrinsics_neon.S \
+	cpu_ref/rsCpuIntrinsics_neon_ColorMatrix.S
 endif
 
-LOCAL_SHARED_LIBRARIES += libdl
-LOCAL_STATIC_LIBRARIES += libcutils liblog libstlport_static
+LOCAL_LDFLAGS += -llog -ldl
+LOCAL_NDK_STL_VARIANT := stlport_static
 
-LOCAL_C_INCLUDES += system/core/include
 LOCAL_C_INCLUDES += external/clang/lib/Headers
 LOCAL_C_INCLUDES += frameworks/compile/libbcc/include
-LOCAL_C_INCLUDES += external/stlport/stlport bionic/ bionic/libstdc++/include
 
 
 LOCAL_CFLAGS += $(rs_base_CFLAGS)
 
 LOCAL_LDLIBS := -lpthread -ldl -lm
 LOCAL_MODULE:= libRSSupport
-LOCAL_SDK_VERSION := $(rs_base_SDK_VERSION)
 LOCAL_MODULE_TAGS := optional
 
 include $(BUILD_SHARED_LIBRARY)

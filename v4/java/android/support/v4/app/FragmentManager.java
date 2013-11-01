@@ -52,10 +52,12 @@ import java.util.List;
  * Static library support version of the framework's {@link android.app.FragmentManager}.
  * Used to write apps that run on platforms prior to Android 3.0.  When running
  * on Android 3.0 or above, this implementation is still used; it does not try
- * to switch to the framework's implementation.  See the framework SDK
+ * to switch to the framework's implementation.  See the framework {@link FragmentManager}
  * documentation for a class overview.
- * 
- * <p>Your activity must derive from {@link FragmentActivity} to use this.
+ *
+ * <p>Your activity must derive from {@link FragmentActivity} to use this. From such an activity,
+ * you can acquire the {@link FragmentManager} by calling
+ * {@link FragmentActivity#getSupportFragmentManager}.
  */
 public abstract class FragmentManager {
     /**
@@ -1206,7 +1208,7 @@ final class FragmentManagerImpl extends FragmentManager {
         if (!fragment.mHidden) {
             fragment.mHidden = true;
             if (fragment.mView != null) {
-                Animation anim = loadAnimation(fragment, transition, true,
+                Animation anim = loadAnimation(fragment, transition, false,
                         transitionStyle);
                 if (anim != null) {
                     fragment.mView.startAnimation(anim);
@@ -1347,12 +1349,19 @@ final class FragmentManagerImpl extends FragmentManager {
         }
     }
 
+    /**
+     * Adds an action to the queue of pending actions.
+     *
+     * @param action the action to add
+     * @param allowStateLoss whether to allow loss of state information
+     * @throws IllegalStateException if the activity has been destroyed
+     */
     public void enqueueAction(Runnable action, boolean allowStateLoss) {
         if (!allowStateLoss) {
             checkStateLoss();
         }
         synchronized (this) {
-            if (mActivity == null) {
+            if (mDestroyed || mActivity == null) {
                 throw new IllegalStateException("Activity has been destroyed");
             }
             if (mPendingActions == null) {
@@ -1954,7 +1963,7 @@ final class FragmentManagerImpl extends FragmentManager {
                 }
             }
         }
-        
+
         if (mCreatedMenus != null) {
             for (int i=0; i<mCreatedMenus.size(); i++) {
                 Fragment f = mCreatedMenus.get(i);
@@ -1963,9 +1972,9 @@ final class FragmentManagerImpl extends FragmentManager {
                 }
             }
         }
-        
+
         mCreatedMenus = newMenus;
-        
+
         return show;
     }
     

@@ -36,7 +36,20 @@ import android.view.ViewGroup;
 import android.view.Window;
 
 /**
- * Base class for activities that use the support library action bar features.
+ * Base class for activities that use the <a
+ * href="{@docRoot}tools/extras/support-library.html">support library</a> action bar features.
+ *
+ * <p>You can add an {@link ActionBar} to your activity when running on API level 7 or higher
+ * by extending this class for your activity and setting the activity theme to
+ * {@link android.support.v7.appcompat.R.style#Theme_AppCompat Theme.AppCompat} or a similar theme.
+ *
+ * <div class="special reference">
+ * <h3>Developer Guides</h3>
+ *
+ * <p>For information about how to use the action bar, including how to add action items, navigation
+ * modes and more, read the <a href="{@docRoot}guide/topics/ui/actionbar.html">Action
+ * Bar</a> API guide.</p>
+ * </div>
  */
 public class ActionBarActivity extends FragmentActivity implements ActionBar.Callback,
         TaskStackBuilder.SupportParentable, ActionBarDrawerToggle.DelegateProvider {
@@ -191,6 +204,14 @@ public class ActionBarActivity extends FragmentActivity implements ActionBar.Cal
         return mImpl.onPreparePanel(featureId, view, menu);
     }
 
+    /**
+     * @hide
+     */
+    @Override
+    protected boolean onPrepareOptionsPanel(View view, Menu menu) {
+        return mImpl.onPrepareOptionsPanel(view, menu);
+    }
+
     void superSetContentView(int resId) {
         super.setContentView(resId);
     }
@@ -213,6 +234,10 @@ public class ActionBarActivity extends FragmentActivity implements ActionBar.Cal
 
     boolean superOnPreparePanel(int featureId, View view, android.view.Menu menu) {
         return super.onPreparePanel(featureId, view, menu);
+    }
+
+    boolean superOnPrepareOptionsPanel(View view, Menu menu) {
+        return super.onPrepareOptionsPanel(view, menu);
     }
 
     boolean superOnMenuItemSelected(int featureId, MenuItem menuItem) {
@@ -429,5 +454,19 @@ public class ActionBarActivity extends FragmentActivity implements ActionBar.Cal
     @Override
     public final ActionBarDrawerToggle.Delegate getDrawerToggleDelegate() {
         return mImpl.getDrawerToggleDelegate();
+    }
+
+    /**
+     * Use {@link #onSupportContentChanged()} instead.
+     */
+    public final void onContentChanged() {
+        mImpl.onContentChanged();
+    }
+
+    /**
+     * This hook is called whenever the content view of the screen changes.
+     * @see android.app.Activity#onContentChanged()
+     */
+    public void onSupportContentChanged() {
     }
 }

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module type="JAVA_MODULE" version="4">
+  <component name="NewModuleRootManager" inherit-compiler-output="true">
+    <exclude-output />
+    <content url="file://$MODULE_DIR$">
+      <sourceFolder url="file://$MODULE_DIR$/eclair" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/eclair-mr1" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/froyo" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/gingerbread" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/honeycomb" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/honeycomb_mr2" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/ics" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/ics-mr1" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/java" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/jellybean" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/jellybean-mr1" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/jellybean-mr2" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/kitkat" isTestSource="false" />
+    </content>
+    <orderEntry type="inheritedJdk" />
+    <orderEntry type="sourceFolder" forTests="false" />
+  </component>
+</module>
+

@@ -1,4 +1,4 @@
-package org.cyanogenmod.support.ui;
+package org.cyanogenmod.platform.ui;
 
 import java.util.ArrayList;
 

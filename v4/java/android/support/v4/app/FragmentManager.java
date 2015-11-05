@@ -428,7 +428,12 @@ final class FragmentManagerImpl extends FragmentManager implements LayoutInflate
         public void onAnimationStart(Animation animation) {
             mShouldRunOnHWLayer = shouldRunOnHWLayer(mView, animation);
             if (mShouldRunOnHWLayer) {
-                ViewCompat.setLayerType(mView, ViewCompat.LAYER_TYPE_HARDWARE, null);
+                mView.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        ViewCompat.setLayerType(mView, ViewCompat.LAYER_TYPE_HARDWARE, null);
+                    }
+                });
             }
         }
 
@@ -436,7 +441,12 @@ final class FragmentManagerImpl extends FragmentManager implements LayoutInflate
         @CallSuper
         public void onAnimationEnd(Animation animation) {
             if (mShouldRunOnHWLayer) {
-                ViewCompat.setLayerType(mView, ViewCompat.LAYER_TYPE_NONE, null);
+                mView.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        ViewCompat.setLayerType(mView, ViewCompat.LAYER_TYPE_NONE, null);
+                    }
+                });
             }
         }
 
@@ -499,9 +509,7 @@ final class FragmentManagerImpl extends FragmentManager implements LayoutInflate
     }
 
     static boolean shouldRunOnHWLayer(View v, Animation anim) {
-        // HW layers result in crashes on ICS so we only use it on JB+
-        return Build.VERSION.SDK_INT >= 16
-                && ViewCompat.getLayerType(v) == ViewCompat.LAYER_TYPE_NONE
+        return ViewCompat.getLayerType(v) == ViewCompat.LAYER_TYPE_NONE
                 && ViewCompat.hasOverlappingRendering(v)
                 && modifiesAlpha(anim);
     }
@@ -907,6 +915,17 @@ final class FragmentManagerImpl extends FragmentManager implements LayoutInflate
         }
         if (shouldRunOnHWLayer(v, anim)) {
             anim.setAnimationListener(new AnimateOnHWLayerIfNeededListener(v, anim));
+        }
+    }
+
+    void setRetainLoader(boolean retain) {
+        if (mActive != null) {
+            for (int i=0; i<mActive.size(); i++) {
+                Fragment f = mActive.get(i);
+                if (f != null) {
+                    f.mRetainLoader = retain;
+                }
+            }
         }
     }
 
@@ -2230,6 +2249,7 @@ final class FragmentManagerImpl extends FragmentManager implements LayoutInflate
             fragment.mTag = tag;
             fragment.mInLayout = true;
             fragment.mFragmentManager = this;
+            fragment.mHost = mHost;
             fragment.onInflate(mHost.getContext(), attrs, fragment.mSavedFragmentState);
             addFragment(fragment, true);
 

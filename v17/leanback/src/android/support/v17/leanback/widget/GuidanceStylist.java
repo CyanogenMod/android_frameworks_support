@@ -54,11 +54,8 @@ import java.util.List;
  * </ul><p>
  * View IDs are allowed to be missing, in which case the corresponding views will be null.
  *
- * @attr ref android.support.v17.leanback.R.styleable#LeanbackGuidedStepTheme_guidanceEntryAnimation
- * @attr ref android.support.v17.leanback.R.styleable#LeanbackGuidedStepTheme_guidedStepEntryAnimation
- * @attr ref android.support.v17.leanback.R.styleable#LeanbackGuidedStepTheme_guidedStepExitAnimation
- * @attr ref android.support.v17.leanback.R.styleable#LeanbackGuidedStepTheme_guidedStepReentryAnimation
- * @attr ref android.support.v17.leanback.R.styleable#LeanbackGuidedStepTheme_guidedStepReturnAnimation
+ * @attr ref android.support.v17.leanback.R.styleable#LeanbackGuidedStepTheme_guidedStepImeAppearingAnimation
+ * @attr ref android.support.v17.leanback.R.styleable#LeanbackGuidedStepTheme_guidedStepImeDisappearingAnimation
  * @attr ref android.support.v17.leanback.R.styleable#LeanbackGuidedStepTheme_guidanceContainerStyle
  * @attr ref android.support.v17.leanback.R.styleable#LeanbackGuidedStepTheme_guidanceTitleStyle
  * @attr ref android.support.v17.leanback.R.styleable#LeanbackGuidedStepTheme_guidanceDescriptionStyle
@@ -176,6 +173,16 @@ public class GuidanceStylist implements FragmentAnimationProvider {
     }
 
     /**
+     * Called when destroy the View created by GuidanceStylist.
+     */
+    public void onDestroyView() {
+        mBreadcrumbView = null;
+        mDescriptionView = null;
+        mIconView = null;
+        mTitleView = null;
+    }
+
+    /**
      * Provides the resource ID of the layout defining the guidance view. Subclasses may override
      * to provide their own customized layouts. The base implementation returns
      * {@link android.support.v17.leanback.R.layout#lb_guidance}. If overridden, the substituted
@@ -223,61 +230,22 @@ public class GuidanceStylist implements FragmentAnimationProvider {
      * {@inheritDoc}
      */
     @Override
-    public void onActivityEnter(@NonNull List<Animator> animators) {
-        addAnimator(animators, mTitleView, R.attr.guidanceEntryAnimation);
-        addAnimator(animators, mBreadcrumbView, R.attr.guidanceEntryAnimation);
-        addAnimator(animators, mDescriptionView, R.attr.guidanceEntryAnimation);
-        addAnimator(animators, mIconView, R.attr.guidanceEntryAnimation);
+    public void onImeAppearing(@NonNull List<Animator> animators) {
+        addAnimator(animators, mTitleView, R.attr.guidedStepImeAppearingAnimation);
+        addAnimator(animators, mBreadcrumbView, R.attr.guidedStepImeAppearingAnimation);
+        addAnimator(animators, mDescriptionView, R.attr.guidedStepImeAppearingAnimation);
+        addAnimator(animators, mIconView, R.attr.guidedStepImeAppearingAnimation);
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public void onActivityExit(@NonNull List<Animator> animators) {}
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void onFragmentEnter(@NonNull List<Animator> animators) {
-        addAnimator(animators, mTitleView, R.attr.guidedStepEntryAnimation);
-        addAnimator(animators, mBreadcrumbView, R.attr.guidedStepEntryAnimation);
-        addAnimator(animators, mDescriptionView, R.attr.guidedStepEntryAnimation);
-        addAnimator(animators, mIconView, R.attr.guidedStepEntryAnimation);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void onFragmentExit(@NonNull List<Animator> animators) {
-        addAnimator(animators, mTitleView, R.attr.guidedStepExitAnimation);
-        addAnimator(animators, mBreadcrumbView, R.attr.guidedStepExitAnimation);
-        addAnimator(animators, mDescriptionView, R.attr.guidedStepExitAnimation);
-        addAnimator(animators, mIconView, R.attr.guidedStepExitAnimation);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void onFragmentReenter(@NonNull List<Animator> animators) {
-        addAnimator(animators, mTitleView, R.attr.guidedStepReentryAnimation);
-        addAnimator(animators, mBreadcrumbView, R.attr.guidedStepReentryAnimation);
-        addAnimator(animators, mDescriptionView, R.attr.guidedStepReentryAnimation);
-        addAnimator(animators, mIconView, R.attr.guidedStepReentryAnimation);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void onFragmentReturn(@NonNull List<Animator> animators) {
-        addAnimator(animators, mTitleView, R.attr.guidedStepReturnAnimation);
-        addAnimator(animators, mBreadcrumbView, R.attr.guidedStepReturnAnimation);
-        addAnimator(animators, mDescriptionView, R.attr.guidedStepReturnAnimation);
-        addAnimator(animators, mIconView, R.attr.guidedStepReturnAnimation);
+    public void onImeDisappearing(@NonNull List<Animator> animators) {
+        addAnimator(animators, mTitleView, R.attr.guidedStepImeDisappearingAnimation);
+        addAnimator(animators, mBreadcrumbView, R.attr.guidedStepImeDisappearingAnimation);
+        addAnimator(animators, mDescriptionView, R.attr.guidedStepImeDisappearingAnimation);
+        addAnimator(animators, mIconView, R.attr.guidedStepImeDisappearingAnimation);
     }
 
     private void addAnimator(List<Animator> animators, View v, int attrId) {

@@ -16,7 +16,6 @@
 
 
 package android.support.v7.widget;
-
 import android.content.Context;
 import android.content.res.TypedArray;
 import android.database.Observable;
@@ -27,11 +26,12 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Parcel;
 import android.os.Parcelable;
-import android.support.annotation.CallSuper;
 import android.os.SystemClock;
+import android.support.annotation.CallSuper;
+import android.support.annotation.IntDef;
+import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.os.TraceCompat;
-import android.support.v4.util.ArrayMap;
 import android.support.v4.view.InputDeviceCompat;
 import android.support.v4.view.MotionEventCompat;
 import android.support.v4.view.NestedScrollingChild;
@@ -62,6 +62,8 @@ import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityManager;
 import android.view.animation.Interpolator;
 
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
@@ -70,6 +72,7 @@ import java.util.List;
 
 import static android.support.v7.widget.AdapterHelper.Callback;
 import static android.support.v7.widget.AdapterHelper.UpdateOp;
+import android.support.v7.widget.RecyclerView.ItemAnimator.ItemHolderInfo;
 
 /**
  * A flexible view for providing a limited window into a large data set.
@@ -239,9 +242,20 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
 
     private SavedState mPendingSavedState;
 
+    /**
+     * Handles adapter updates
+     */
     AdapterHelper mAdapterHelper;
 
+    /**
+     * Handles abstraction between LayoutManager children and RecyclerView children
+     */
     ChildHelper mChildHelper;
+
+    /**
+     * Keeps data about views to be used for animations
+     */
+    final ViewInfoStore mViewInfoStore = new ViewInfoStore();
 
     /**
      * Prior to L, there is no way to query this variable which is why we override the setter and
@@ -257,26 +271,15 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
      */
     private final Runnable mUpdateChildViewsRunnable = new Runnable() {
         public void run() {
-            if (!mFirstLayoutComplete) {
+            if (!mFirstLayoutComplete || isLayoutRequested()) {
                 // a layout request will happen, we should not do layout here.
                 return;
             }
-            if (mDataSetHasChangedAfterLayout) {
-                TraceCompat.beginSection(TRACE_ON_DATA_SET_CHANGE_LAYOUT_TAG);
-                dispatchLayout();
-                TraceCompat.endSection();
-            } else if (mAdapterHelper.hasPendingUpdates()) {
-                TraceCompat.beginSection(TRACE_HANDLE_ADAPTER_UPDATES_TAG);
-                eatRequestLayout();
-                mAdapterHelper.preProcess();
-                if (!mLayoutRequestEaten) {
-                    // We run this after pre-processing is complete so that ViewHolders have their
-                    // final adapter positions. No need to run it if a layout is already requested.
-                    rebindUpdatedViewHolders();
-                }
-                resumeRequestLayout(true);
-                TraceCompat.endSection();
+            if (mLayoutFrozen) {
+                mLayoutRequestEaten = true;
+                return; //we'll process updates when ice age ends.
             }
+            consumePendingUpdateOperations();
         }
     };
 
@@ -398,6 +401,44 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
         public float getInterpolation(float t) {
             t -= 1.0f;
             return t * t * t * t * t + 1.0f;
+        }
+    };
+
+    /**
+     * The callback to convert view info diffs into animations.
+     */
+    private final ViewInfoStore.ProcessCallback mViewInfoProcessCallback =
+            new ViewInfoStore.ProcessCallback() {
+        @Override
+        public void processDisappeared(ViewHolder viewHolder, ItemHolderInfo info,
+                ItemHolderInfo postInfo) {
+            mRecycler.unscrapView(viewHolder);
+            animateDisappearance(viewHolder, info, postInfo);
+        }
+        @Override
+        public void processAppeared(ViewHolder viewHolder,
+                ItemHolderInfo preInfo, ItemHolderInfo info) {
+            animateAppearance(viewHolder, preInfo, info);
+        }
+
+        @Override
+        public void processPersistent(ViewHolder viewHolder,
+                @NonNull ItemHolderInfo preInfo, @NonNull ItemHolderInfo postInfo) {
+            viewHolder.setIsRecyclable(false);
+            if (mDataSetHasChangedAfterLayout) {
+                // since it was rebound, use change instead as we'll be mapping them from
+                // stable ids. If stable ids were false, we would not be running any
+                // animations
+                if (mItemAnimator.animateChange(viewHolder, viewHolder, preInfo, postInfo)) {
+                    postAnimationRunner();
+                }
+            } else if (mItemAnimator.animatePersistence(viewHolder, preInfo, postInfo)) {
+                postAnimationRunner();
+            }
+        }
+        @Override
+        public void unused(ViewHolder viewHolder) {
+            mLayout.removeAndRecycleView(viewHolder.itemView, mRecycler);
         }
     };
 
@@ -1338,8 +1379,8 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
 
     @Override
     public void scrollTo(int x, int y) {
-        throw new UnsupportedOperationException(
-                "RecyclerView does not support scrolling to an absolute position.");
+        Log.w(TAG, "RecyclerView does not support scrolling to an absolute position. "
+                + "Use scrollToPosition instead");
     }
 
     @Override
@@ -1368,7 +1409,59 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
      * This method consumes all deferred changes to avoid that case.
      */
     private void consumePendingUpdateOperations() {
-        mUpdateChildViewsRunnable.run();
+        if (!mFirstLayoutComplete) {
+            // a layout request will happen, we should not do layout here.
+            return;
+        }
+        if (mDataSetHasChangedAfterLayout) {
+            TraceCompat.beginSection(TRACE_ON_DATA_SET_CHANGE_LAYOUT_TAG);
+            dispatchLayout();
+            TraceCompat.endSection();
+            return;
+        }
+        if (!mAdapterHelper.hasPendingUpdates()) {
+            return;
+        }
+
+        // if it is only an item change (no add-remove-notifyDataSetChanged) we can check if any
+        // of the visible items is affected and if not, just ignore the change.
+        if (mAdapterHelper.hasAnyUpdateTypes(UpdateOp.UPDATE) && !mAdapterHelper
+                .hasAnyUpdateTypes(UpdateOp.ADD | UpdateOp.REMOVE | UpdateOp.MOVE)) {
+            TraceCompat.beginSection(TRACE_HANDLE_ADAPTER_UPDATES_TAG);
+            eatRequestLayout();
+            mAdapterHelper.preProcess();
+            if (!mLayoutRequestEaten) {
+                if (hasUpdatedView()) {
+                    dispatchLayout();
+                } else {
+                    // no need to layout, clean state
+                    mAdapterHelper.consumePostponedUpdates();
+                }
+            }
+            resumeRequestLayout(true);
+            TraceCompat.endSection();
+        } else if (mAdapterHelper.hasPendingUpdates()) {
+            TraceCompat.beginSection(TRACE_ON_DATA_SET_CHANGE_LAYOUT_TAG);
+            dispatchLayout();
+            TraceCompat.endSection();
+        }
+    }
+
+    /**
+     * @return True if an existing view holder needs to be updated
+     */
+    private boolean hasUpdatedView() {
+        final int childCount = mChildHelper.getChildCount();
+        for (int i = 0; i < childCount; i++) {
+            final ViewHolder holder = getChildViewHolderInt(mChildHelper.getChildAt(i));
+            if (holder == null || holder.shouldIgnore()) {
+                continue;
+            }
+            if (holder.isUpdated()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -1400,27 +1493,7 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
                 unconsumedY = y - consumedY;
             }
             TraceCompat.endSection();
-            if (supportsChangeAnimations()) {
-                // Fix up shadow views used by changing animations
-                int count = mChildHelper.getChildCount();
-                for (int i = 0; i < count; i++) {
-                    View view = mChildHelper.getChildAt(i);
-                    ViewHolder holder = getChildViewHolder(view);
-                    if (holder != null && holder.mShadowingHolder != null) {
-                        ViewHolder shadowingHolder = holder.mShadowingHolder;
-                        View shadowingView = shadowingHolder != null ? shadowingHolder.itemView : null;
-                        if (shadowingView != null) {
-                            int left = view.getLeft();
-                            int top = view.getTop();
-                            if (left != shadowingView.getLeft() || top != shadowingView.getTop()) {
-                                shadowingView.layout(left, top,
-                                        left + shadowingView.getWidth(),
-                                        top + shadowingView.getHeight());
-                            }
-                        }
-                    }
-                }
-            }
+            repositionShadowingViews();
             onExitLayoutOrScroll();
             resumeRequestLayout(false);
         }
@@ -2001,6 +2074,7 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
             mLayout.dispatchDetachedFromWindow(this, mRecycler);
         }
         removeCallbacks(mItemAnimatorRunner);
+        mViewInfoStore.onDetach();
     }
 
     /**
@@ -2164,6 +2238,9 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
                     setScrollState(SCROLL_STATE_DRAGGING);
                 }
 
+                // Clear the nested offsets
+                mNestedOffsets[0] = mNestedOffsets[1] = 0;
+
                 int nestedScrollAxis = ViewCompat.SCROLL_AXIS_NONE;
                 if (canScrollHorizontally) {
                     nestedScrollAxis |= ViewCompat.SCROLL_AXIS_HORIZONTAL;
@@ -2203,10 +2280,6 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
                         startScroll = true;
                     }
                     if (startScroll) {
-                        final ViewParent parent = getParent();
-                        if (parent != null) {
-                            parent.requestDisallowInterceptTouchEvent(true);
-                        }
                         setScrollState(SCROLL_STATE_DRAGGING);
                     }
                 }
@@ -2332,10 +2405,6 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
                         startScroll = true;
                     }
                     if (startScroll) {
-                        final ViewParent parent = getParent();
-                        if (parent != null) {
-                            parent.requestDisallowInterceptTouchEvent(true);
-                        }
                         setScrollState(SCROLL_STATE_DRAGGING);
                     }
                 }
@@ -2662,10 +2731,6 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
         return mItemAnimator;
     }
 
-    private boolean supportsChangeAnimations() {
-        return mItemAnimator != null && mItemAnimator.getSupportsChangeAnimations();
-    }
-
     /**
      * Post a runnable to the next frame to run pending item animations. Only the first such
      * request will be posted, governed by the mPostedAnimatorRunner flag.
@@ -2703,8 +2768,7 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
         } else {
             mAdapterHelper.consumeUpdatesInOnePass();
         }
-        boolean animationTypeSupported = (mItemsAddedOrRemoved && !mItemsChanged) ||
-                (mItemsAddedOrRemoved || (mItemsChanged && supportsChangeAnimations()));
+        boolean animationTypeSupported = mItemsAddedOrRemoved || mItemsChanged;
         mState.mRunSimpleAnimations = mFirstLayoutComplete && mItemAnimator != null &&
                 (mDataSetHasChangedAfterLayout || animationTypeSupported ||
                         mLayout.mRequestedSimpleAnimations) &&
@@ -2730,11 +2794,14 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
      * The overall approach figures out what items exist before/after layout and
      * infers one of the five above states for each of the items. Then the animations
      * are set up accordingly:
-     * PERSISTENT views are moved ({@link ItemAnimator#animateMove(ViewHolder, int, int, int, int)})
-     * REMOVED views are removed ({@link ItemAnimator#animateRemove(ViewHolder)})
-     * ADDED views are added ({@link ItemAnimator#animateAdd(ViewHolder)})
-     * DISAPPEARING views are moved off screen
-     * APPEARING views are moved on screen
+     * PERSISTENT views are animated via
+     * {@link ItemAnimator#animatePersistence(ViewHolder, ItemHolderInfo, ItemHolderInfo)}
+     * DISAPPEARING views are animated via
+     * {@link ItemAnimator#animateDisappearance(ViewHolder, ItemHolderInfo, ItemHolderInfo)}
+     * APPEARING views are animated via
+     * {@link ItemAnimator#animateAppearance(ViewHolder, ItemHolderInfo, ItemHolderInfo)}
+     * and changed views are animated via
+     * {@link ItemAnimator#animateChange(ViewHolder, ViewHolder, ItemHolderInfo, ItemHolderInfo)}.
      */
     void dispatchLayout() {
         if (mAdapter == null) {
@@ -2745,33 +2812,42 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
             Log.e(TAG, "No layout manager attached; skipping layout");
             return;
         }
-        mState.mDisappearingViewsInLayoutPass.clear();
+        mViewInfoStore.clear();
         eatRequestLayout();
         onEnterLayoutOrScroll();
 
         processAdapterUpdatesAndSetAnimationFlags();
-
-        mState.mOldChangedHolders = mState.mRunSimpleAnimations && mItemsChanged
-                && supportsChangeAnimations() ? new ArrayMap<Long, ViewHolder>() : null;
+        mState.mTrackOldChangeHolders = mState.mRunSimpleAnimations && mItemsChanged;
         mItemsAddedOrRemoved = mItemsChanged = false;
-        ArrayMap<View, Rect> appearingViewInitialBounds = null;
         mState.mInPreLayout = mState.mRunPredictiveAnimations;
         mState.mItemCount = mAdapter.getItemCount();
         findMinMaxChildLayoutPositions(mMinMaxLayoutPositions);
 
         if (mState.mRunSimpleAnimations) {
             // Step 0: Find out where all non-removed items are, pre-layout
-            mState.mPreLayoutHolderMap.clear();
-            mState.mPostLayoutHolderMap.clear();
             int count = mChildHelper.getChildCount();
             for (int i = 0; i < count; ++i) {
                 final ViewHolder holder = getChildViewHolderInt(mChildHelper.getChildAt(i));
                 if (holder.shouldIgnore() || (holder.isInvalid() && !mAdapter.hasStableIds())) {
                     continue;
                 }
-                final View view = holder.itemView;
-                mState.mPreLayoutHolderMap.put(holder, new ItemHolderInfo(holder,
-                        view.getLeft(), view.getTop(), view.getRight(), view.getBottom()));
+                final ItemHolderInfo animationInfo = mItemAnimator
+                        .recordPreLayoutInformation(mState, holder,
+                                ItemAnimator.buildAdapterChangeFlagsForAnimations(holder),
+                                holder.getUnmodifiedPayloads());
+                mViewInfoStore.addToPreLayout(holder, animationInfo);
+                if (mState.mTrackOldChangeHolders && holder.isUpdated() && !holder.isRemoved()
+                        && !holder.shouldIgnore() && !holder.isInvalid()) {
+                    long key = getChangedHolderKey(holder);
+                    // This is NOT the only place where a ViewHolder is added to old change holders
+                    // list. There is another case where:
+                    //    * A VH is currently hidden but not deleted
+                    //    * The hidden item is changed in the adapter
+                    //    * Layout manager decides to layout the item in the pre-Layout pass (step1)
+                    // When this case is detected, RV will un-hide that view and add to the old
+                    // change holders list.
+                    mViewInfoStore.addToOldChangeHolders(key, holder);
+                }
             }
         }
         if (mState.mRunPredictiveAnimations) {
@@ -2782,42 +2858,32 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
 
             // Save old positions so that LayoutManager can run its mapping logic.
             saveOldPositions();
-            // processAdapterUpdatesAndSetAnimationFlags already run pre-layout animations.
-            if (mState.mOldChangedHolders != null) {
-                int count = mChildHelper.getChildCount();
-                for (int i = 0; i < count; ++i) {
-                    final ViewHolder holder = getChildViewHolderInt(mChildHelper.getChildAt(i));
-                    if (holder.isChanged() && !holder.isRemoved() && !holder.shouldIgnore()) {
-                        long key = getChangedHolderKey(holder);
-                        mState.mOldChangedHolders.put(key, holder);
-                        mState.mPreLayoutHolderMap.remove(holder);
-                    }
-                }
-            }
-
             final boolean didStructureChange = mState.mStructureChanged;
             mState.mStructureChanged = false;
             // temporarily disable flag because we are asking for previous layout
             mLayout.onLayoutChildren(mRecycler, mState);
             mState.mStructureChanged = didStructureChange;
 
-            appearingViewInitialBounds = new ArrayMap<View, Rect>();
             for (int i = 0; i < mChildHelper.getChildCount(); ++i) {
-                boolean found = false;
-                View child = mChildHelper.getChildAt(i);
-                if (getChildViewHolderInt(child).shouldIgnore()) {
+                final View child = mChildHelper.getChildAt(i);
+                final ViewHolder viewHolder = getChildViewHolderInt(child);
+                if (viewHolder.shouldIgnore()) {
                     continue;
                 }
-                for (int j = 0; j < mState.mPreLayoutHolderMap.size(); ++j) {
-                    ViewHolder holder = mState.mPreLayoutHolderMap.keyAt(j);
-                    if (holder.itemView == child) {
-                        found = true;
-                        break;
+                if (!mViewInfoStore.isInPreLayout(viewHolder)) {
+                    int flags = ItemAnimator.buildAdapterChangeFlagsForAnimations(viewHolder);
+                    boolean wasHidden = viewHolder
+                            .hasAnyOfTheFlags(ViewHolder.FLAG_BOUNCED_FROM_HIDDEN_LIST);
+                    if (!wasHidden) {
+                        flags |= ItemAnimator.FLAG_APPEARED_IN_PRE_LAYOUT;
                     }
-                }
-                if (!found) {
-                    appearingViewInitialBounds.put(child, new Rect(child.getLeft(), child.getTop(),
-                            child.getRight(), child.getBottom()));
+                    final ItemHolderInfo animationInfo = mItemAnimator.recordPreLayoutInformation(
+                            mState, viewHolder, flags, viewHolder.getUnmodifiedPayloads());
+                    if (wasHidden) {
+                        recordAnimationInfoIfBouncedHiddenView(viewHolder, animationInfo);
+                    } else {
+                        mViewInfoStore.addToAppearedInPreLayoutHolders(viewHolder, animationInfo);
+                    }
                 }
             }
             // we don't process disappearing list because they may re-appear in post layout pass.
@@ -2825,19 +2891,6 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
             mAdapterHelper.consumePostponedUpdates();
         } else {
             clearOldPositions();
-            // in case pre layout did run but we decided not to run predictive animations.
-            mAdapterHelper.consumeUpdatesInOnePass();
-            if (mState.mOldChangedHolders != null) {
-                int count = mChildHelper.getChildCount();
-                for (int i = 0; i < count; ++i) {
-                    final ViewHolder holder = getChildViewHolderInt(mChildHelper.getChildAt(i));
-                    if (holder.isChanged() && !holder.isRemoved() && !holder.shouldIgnore()) {
-                        long key = getChangedHolderKey(holder);
-                        mState.mOldChangedHolders.put(key, holder);
-                        mState.mPreLayoutHolderMap.remove(holder);
-                    }
-                }
-            }
         }
         mState.mItemCount = mAdapter.getItemCount();
         mState.mDeletedInvisibleItemCountSincePreviousLayout = 0;
@@ -2853,110 +2906,62 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
         mState.mRunSimpleAnimations = mState.mRunSimpleAnimations && mItemAnimator != null;
 
         if (mState.mRunSimpleAnimations) {
-            // Step 3: Find out where things are now, post-layout
-            ArrayMap<Long, ViewHolder> newChangedHolders = mState.mOldChangedHolders != null ?
-                    new ArrayMap<Long, ViewHolder>() : null;
+            // Step 3: Find out where things are now, and process change animations.
             int count = mChildHelper.getChildCount();
             for (int i = 0; i < count; ++i) {
                 ViewHolder holder = getChildViewHolderInt(mChildHelper.getChildAt(i));
                 if (holder.shouldIgnore()) {
                     continue;
                 }
-                final View view = holder.itemView;
                 long key = getChangedHolderKey(holder);
-                if (newChangedHolders != null && mState.mOldChangedHolders.get(key) != null) {
-                    newChangedHolders.put(key, holder);
+                final ItemHolderInfo animationInfo = mItemAnimator
+                        .recordPostLayoutInformation(mState, holder);
+                ViewHolder oldChangeViewHolder = mViewInfoStore.getFromOldChangeHolders(key);
+                if (oldChangeViewHolder != null && !oldChangeViewHolder.shouldIgnore()) {
+                    // run a change animation
+                    final ItemHolderInfo preInfo = mViewInfoStore.popFromPreLayout(
+                            oldChangeViewHolder);
+                    animateChange(oldChangeViewHolder, holder, preInfo, animationInfo);
                 } else {
-                    mState.mPostLayoutHolderMap.put(holder, new ItemHolderInfo(holder,
-                            view.getLeft(), view.getTop(), view.getRight(), view.getBottom()));
+                    mViewInfoStore.addToPostLayout(holder, animationInfo);
                 }
             }
-            processDisappearingList(appearingViewInitialBounds);
-            // Step 4: Animate DISAPPEARING and REMOVED items
-            int preLayoutCount = mState.mPreLayoutHolderMap.size();
-            for (int i = preLayoutCount - 1; i >= 0; i--) {
-                ViewHolder itemHolder = mState.mPreLayoutHolderMap.keyAt(i);
-                if (!mState.mPostLayoutHolderMap.containsKey(itemHolder)) {
-                    ItemHolderInfo disappearingItem = mState.mPreLayoutHolderMap.valueAt(i);
-                    mState.mPreLayoutHolderMap.removeAt(i);
 
-                    View disappearingItemView = disappearingItem.holder.itemView;
-                    mRecycler.unscrapView(disappearingItem.holder);
-                    animateDisappearance(disappearingItem);
-                }
-            }
-            // Step 5: Animate APPEARING and ADDED items
-            int postLayoutCount = mState.mPostLayoutHolderMap.size();
-            if (postLayoutCount > 0) {
-                for (int i = postLayoutCount - 1; i >= 0; i--) {
-                    ViewHolder itemHolder = mState.mPostLayoutHolderMap.keyAt(i);
-                    ItemHolderInfo info = mState.mPostLayoutHolderMap.valueAt(i);
-                    if ((mState.mPreLayoutHolderMap.isEmpty() ||
-                            !mState.mPreLayoutHolderMap.containsKey(itemHolder))) {
-                        mState.mPostLayoutHolderMap.removeAt(i);
-                        Rect initialBounds = (appearingViewInitialBounds != null) ?
-                                appearingViewInitialBounds.get(itemHolder.itemView) : null;
-                        animateAppearance(itemHolder, initialBounds,
-                                info.left, info.top);
-                    }
-                }
-            }
-            // Step 6: Animate PERSISTENT items
-            count = mState.mPostLayoutHolderMap.size();
-            for (int i = 0; i < count; ++i) {
-                ViewHolder postHolder = mState.mPostLayoutHolderMap.keyAt(i);
-                ItemHolderInfo postInfo = mState.mPostLayoutHolderMap.valueAt(i);
-                ItemHolderInfo preInfo = mState.mPreLayoutHolderMap.get(postHolder);
-                if (preInfo != null && postInfo != null) {
-                    if (preInfo.left != postInfo.left || preInfo.top != postInfo.top) {
-                        postHolder.setIsRecyclable(false);
-                        if (DEBUG) {
-                            Log.d(TAG, "PERSISTENT: " + postHolder +
-                                    " with view " + postHolder.itemView);
-                        }
-                        if (mItemAnimator.animateMove(postHolder,
-                                preInfo.left, preInfo.top, postInfo.left, postInfo.top)) {
-                            postAnimationRunner();
-                        }
-                    }
-                }
-            }
-            // Step 7: Animate CHANGING items
-            count = mState.mOldChangedHolders != null ? mState.mOldChangedHolders.size() : 0;
-            // traverse reverse in case view gets recycled while we are traversing the list.
-            for (int i = count - 1; i >= 0; i--) {
-                long key = mState.mOldChangedHolders.keyAt(i);
-                ViewHolder oldHolder = mState.mOldChangedHolders.get(key);
-                View oldView = oldHolder.itemView;
-                if (oldHolder.shouldIgnore()) {
-                    continue;
-                }
-                // We probably don't need this check anymore since these views are removed from
-                // the list if they are recycled.
-                if (mRecycler.mChangedScrap != null &&
-                        mRecycler.mChangedScrap.contains(oldHolder)) {
-                    animateChange(oldHolder, newChangedHolders.get(key));
-                } else if (DEBUG) {
-                    Log.e(TAG, "cannot find old changed holder in changed scrap :/" + oldHolder);
-                }
-            }
+            // Step 4: Process view info lists and trigger animations
+            mViewInfoStore.process(mViewInfoProcessCallback);
         }
         resumeRequestLayout(false);
         mLayout.removeAndRecycleScrapInt(mRecycler);
         mState.mPreviousLayoutItemCount = mState.mItemCount;
         mDataSetHasChangedAfterLayout = false;
         mState.mRunSimpleAnimations = false;
+
         mState.mRunPredictiveAnimations = false;
         onExitLayoutOrScroll();
         mLayout.mRequestedSimpleAnimations = false;
         if (mRecycler.mChangedScrap != null) {
             mRecycler.mChangedScrap.clear();
         }
-        mState.mOldChangedHolders = null;
-
+        mViewInfoStore.clear();
         if (didChildRangeChange(mMinMaxLayoutPositions[0], mMinMaxLayoutPositions[1])) {
             dispatchOnScrolled(0, 0);
         }
+    }
+
+    /**
+     * Records the animation information for a view holder that was bounced from hidden list. It
+     * also clears the bounce back flag.
+     */
+    private void recordAnimationInfoIfBouncedHiddenView(ViewHolder viewHolder,
+            ItemHolderInfo animationInfo) {
+        // looks like this view bounced back from hidden list!
+        viewHolder.setFlags(0, ViewHolder.FLAG_BOUNCED_FROM_HIDDEN_LIST);
+        if (mState.mTrackOldChangeHolders && viewHolder.isUpdated()
+                && !viewHolder.isRemoved() && !viewHolder.shouldIgnore()) {
+            long key = getChangedHolderKey(viewHolder);
+            mViewInfoStore.addToOldChangeHolders(key, viewHolder);
+        }
+        mViewInfoStore.addToPreLayout(viewHolder, animationInfo);
     }
 
     private void findMinMaxChildLayoutPositions(int[] into) {
@@ -3026,114 +3031,35 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
         return mAdapter.hasStableIds() ? holder.getItemId() : holder.mPosition;
     }
 
-    /**
-     * A LayoutManager may want to layout a view just to animate disappearance.
-     * This method handles those views and triggers remove animation on them.
-     */
-    private void processDisappearingList(ArrayMap<View, Rect> appearingViews) {
-        final List<View> disappearingList = mState.mDisappearingViewsInLayoutPass;
-        for (int i = disappearingList.size() - 1; i >= 0; i --) {
-            View view = disappearingList.get(i);
-            ViewHolder vh = getChildViewHolderInt(view);
-            final ItemHolderInfo info = mState.mPreLayoutHolderMap.remove(vh);
-            if (!mState.isPreLayout()) {
-                mState.mPostLayoutHolderMap.remove(vh);
-            }
-            if (appearingViews.remove(view) != null) {
-                mLayout.removeAndRecycleView(view, mRecycler);
-                continue;
-            }
-            if (info != null) {
-                animateDisappearance(info);
-            } else {
-                // let it disappear from the position it becomes visible
-                animateDisappearance(new ItemHolderInfo(vh, view.getLeft(), view.getTop(),
-                        view.getRight(), view.getBottom()));
-            }
-        }
-        disappearingList.clear();
-    }
-
-    private void animateAppearance(ViewHolder itemHolder, Rect beforeBounds, int afterLeft,
-            int afterTop) {
-        View newItemView = itemHolder.itemView;
-        if (beforeBounds != null &&
-                (beforeBounds.left != afterLeft || beforeBounds.top != afterTop)) {
-            // slide items in if before/after locations differ
-            itemHolder.setIsRecyclable(false);
-            if (DEBUG) {
-                Log.d(TAG, "APPEARING: " + itemHolder + " with view " + newItemView);
-            }
-            if (mItemAnimator.animateMove(itemHolder,
-                    beforeBounds.left, beforeBounds.top,
-                    afterLeft, afterTop)) {
-                postAnimationRunner();
-            }
-        } else {
-            if (DEBUG) {
-                Log.d(TAG, "ADDED: " + itemHolder + " with view " + newItemView);
-            }
-            itemHolder.setIsRecyclable(false);
-            if (mItemAnimator.animateAdd(itemHolder)) {
-                postAnimationRunner();
-            }
+    private void animateAppearance(@NonNull ViewHolder itemHolder,
+            @Nullable ItemHolderInfo preLayoutInfo, @NonNull ItemHolderInfo postLayoutInfo) {
+        itemHolder.setIsRecyclable(false);
+        if (mItemAnimator.animateAppearance(itemHolder, preLayoutInfo, postLayoutInfo)) {
+            postAnimationRunner();
         }
     }
 
-    private void animateDisappearance(ItemHolderInfo disappearingItem) {
-        View disappearingItemView = disappearingItem.holder.itemView;
-        addAnimatingView(disappearingItem.holder);
-        int oldLeft = disappearingItem.left;
-        int oldTop = disappearingItem.top;
-        int newLeft = disappearingItemView.getLeft();
-        int newTop = disappearingItemView.getTop();
-        if (!disappearingItem.holder.isRemoved() && (oldLeft != newLeft || oldTop != newTop)) {
-            disappearingItem.holder.setIsRecyclable(false);
-            disappearingItemView.layout(newLeft, newTop,
-                    newLeft + disappearingItemView.getWidth(),
-                    newTop + disappearingItemView.getHeight());
-            if (DEBUG) {
-                Log.d(TAG, "DISAPPEARING: " + disappearingItem.holder +
-                        " with view " + disappearingItemView);
-            }
-            if (mItemAnimator.animateMove(disappearingItem.holder, oldLeft, oldTop,
-                    newLeft, newTop)) {
-                postAnimationRunner();
-            }
-        } else {
-            if (DEBUG) {
-                Log.d(TAG, "REMOVED: " + disappearingItem.holder +
-                        " with view " + disappearingItemView);
-            }
-            disappearingItem.holder.setIsRecyclable(false);
-            if (mItemAnimator.animateRemove(disappearingItem.holder)) {
-                postAnimationRunner();
-            }
+    private void animateDisappearance(@NonNull ViewHolder holder,
+            @NonNull ItemHolderInfo preLayoutInfo, @Nullable ItemHolderInfo postLayoutInfo) {
+        addAnimatingView(holder);
+        holder.setIsRecyclable(false);
+        if (mItemAnimator.animateDisappearance(holder, preLayoutInfo, postLayoutInfo)) {
+            postAnimationRunner();
         }
     }
 
-    private void animateChange(ViewHolder oldHolder, ViewHolder newHolder) {
+    private void animateChange(@NonNull ViewHolder oldHolder, @NonNull ViewHolder newHolder,
+            @NonNull ItemHolderInfo preInfo, @NonNull ItemHolderInfo postInfo) {
         oldHolder.setIsRecyclable(false);
-        addAnimatingView(oldHolder);
-        oldHolder.mShadowedHolder = newHolder;
-        mRecycler.unscrapView(oldHolder);
-        if (DEBUG) {
-            Log.d(TAG, "CHANGED: " + oldHolder + " with view " + oldHolder.itemView);
-        }
-        final int fromLeft = oldHolder.itemView.getLeft();
-        final int fromTop = oldHolder.itemView.getTop();
-        final int toLeft, toTop;
-        if (newHolder == null || newHolder.shouldIgnore()) {
-            toLeft = fromLeft;
-            toTop = fromTop;
-        } else {
-            toLeft = newHolder.itemView.getLeft();
-            toTop = newHolder.itemView.getTop();
+        if (oldHolder != newHolder) {
+            oldHolder.mShadowedHolder = newHolder;
+            // old holder should disappear after animation ends
+            addAnimatingView(oldHolder);
+            mRecycler.unscrapView(oldHolder);
             newHolder.setIsRecyclable(false);
             newHolder.mShadowingHolder = oldHolder;
         }
-        if(mItemAnimator.animateChange(oldHolder, newHolder,
-                fromLeft, fromTop, toLeft, toTop)) {
+        if (mItemAnimator.animateChange(oldHolder, newHolder, preInfo, postInfo)) {
             postAnimationRunner();
         }
     }
@@ -3405,9 +3331,6 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
                 // ViewHolders have their final positions assigned.
                 holder.addFlags(ViewHolder.FLAG_UPDATE);
                 holder.addChangePayload(payload);
-                if (supportsChangeAnimations()) {
-                    holder.addFlags(ViewHolder.FLAG_CHANGED);
-                }
                 // lp cannot be null since we get ViewHolder from it.
                 ((LayoutParams) child.getLayoutParams()).mInsetsDirty = true;
             }
@@ -3415,36 +3338,8 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
         mRecycler.viewRangeUpdate(positionStart, itemCount);
     }
 
-    void rebindUpdatedViewHolders() {
-        final int childCount = mChildHelper.getChildCount();
-        for (int i = 0; i < childCount; i++) {
-            final ViewHolder holder = getChildViewHolderInt(mChildHelper.getChildAt(i));
-            // validate type is correct
-            if (holder == null || holder.shouldIgnore()) {
-                continue;
-            }
-            if (holder.isRemoved() || holder.isInvalid()) {
-                requestLayout();
-            } else if (holder.needsUpdate()) {
-                final int type = mAdapter.getItemViewType(holder.mPosition);
-                if (holder.getItemViewType() == type) {
-                    // Binding an attached view will request a layout if needed.
-                    if (!holder.isChanged() || !supportsChangeAnimations()) {
-                        mAdapter.bindViewHolder(holder, holder.mPosition);
-                    } else {
-                        // Don't rebind changed holders if change animations are enabled.
-                        // We want the old contents for the animation and will get a new
-                        // holder for the new contents.
-                        requestLayout();
-                    }
-                } else {
-                    // binding to a new view will need re-layout anyways. We can as well trigger
-                    // it here so that it happens during layout
-                    requestLayout();
-                    break;
-                }
-            }
-        }
+    private boolean canReuseUpdatedViewHolder(ViewHolder viewHolder) {
+        return mItemAnimator == null || mItemAnimator.canReuseUpdatedViewHolder(viewHolder);
     }
 
     private void setDataSetChangedAfterLayout() {
@@ -3913,25 +3808,8 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
                         overscrollY = dy - vresult;
                     }
                     TraceCompat.endSection();
-                    if (supportsChangeAnimations()) {
-                        // Fix up shadow views used by changing animations
-                        int count = mChildHelper.getChildCount();
-                        for (int i = 0; i < count; i++) {
-                            View view = mChildHelper.getChildAt(i);
-                            ViewHolder holder = getChildViewHolder(view);
-                            if (holder != null && holder.mShadowingHolder != null) {
-                                View shadowingView = holder.mShadowingHolder.itemView;
-                                int left = view.getLeft();
-                                int top = view.getTop();
-                                if (left != shadowingView.getLeft() ||
-                                        top != shadowingView.getTop()) {
-                                    shadowingView.layout(left, top,
-                                            left + shadowingView.getWidth(),
-                                            top + shadowingView.getHeight());
-                                }
-                            }
-                        }
-                    }
+                    repositionShadowingViews();
+
                     onExitLayoutOrScroll();
                     resumeRequestLayout(false);
 
@@ -4095,6 +3973,26 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
             mScroller.abortAnimation();
         }
 
+    }
+
+    private void repositionShadowingViews() {
+        // Fix up shadow views used by change animations
+        int count = mChildHelper.getChildCount();
+        for (int i = 0; i < count; i++) {
+            View view = mChildHelper.getChildAt(i);
+            ViewHolder holder = getChildViewHolder(view);
+            if (holder != null && holder.mShadowingHolder != null) {
+                View shadowingView = holder.mShadowingHolder.itemView;
+                int left = view.getLeft();
+                int top = view.getTop();
+                if (left != shadowingView.getLeft() ||
+                        top != shadowingView.getTop()) {
+                    shadowingView.layout(left, top,
+                            left + shadowingView.getWidth(),
+                            top + shadowingView.getHeight());
+                }
+            }
+        }
     }
 
     private class RecyclerViewDataObserver extends AdapterDataObserver {
@@ -4343,7 +4241,11 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
             // if it is a removed holder, nothing to verify since we cannot ask adapter anymore
             // if it is not removed, verify the type and id.
             if (holder.isRemoved()) {
-                return true;
+                if (DEBUG && !mState.isPreLayout()) {
+                    throw new IllegalStateException("should not receive a removed view unelss it"
+                            + " is pre layout");
+                }
+                return mState.isPreLayout();
             }
             if (holder.mPosition < 0 || holder.mPosition >= mAdapter.getItemCount()) {
                 throw new IndexOutOfBoundsException("Inconsistency detected. Invalid view holder "
@@ -4554,6 +4456,23 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
                     }
                 }
             }
+
+            // This is very ugly but the only place we can grab this information
+            // before the View is rebound and returned to the LayoutManager for post layout ops.
+            // We don't need this in pre-layout since the VH is not updated by the LM.
+            if (fromScrap && !mState.isPreLayout() && holder
+                    .hasAnyOfTheFlags(ViewHolder.FLAG_BOUNCED_FROM_HIDDEN_LIST)) {
+                holder.setFlags(0, ViewHolder.FLAG_BOUNCED_FROM_HIDDEN_LIST);
+                if (mState.mRunSimpleAnimations) {
+                    int changeFlags = ItemAnimator
+                            .buildAdapterChangeFlagsForAnimations(holder);
+                    changeFlags |= ItemAnimator.FLAG_APPEARED_IN_PRE_LAYOUT;
+                    final ItemHolderInfo info = mItemAnimator.recordPreLayoutInformation(mState,
+                            holder, changeFlags, holder.getUnmodifiedPayloads());
+                    recordAnimationInfoIfBouncedHiddenView(holder, info);
+                }
+            }
+
             boolean bound = false;
             if (mState.isPreLayout() && holder.isBound()) {
                 // do not update unless we absolutely have to.
@@ -4730,8 +4649,8 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
                         holder);
             }
             if (forceRecycle || holder.isRecyclable()) {
-                if (!holder.hasAnyOfTheFlags(ViewHolder.FLAG_INVALID | ViewHolder.FLAG_REMOVED |
-                        ViewHolder.FLAG_CHANGED | ViewHolder.FLAG_UPDATE)) {
+                if (!holder.hasAnyOfTheFlags(ViewHolder.FLAG_INVALID | ViewHolder.FLAG_REMOVED
+                        | ViewHolder.FLAG_UPDATE)) {
                     // Retire oldest cached view
                     final int cachedViewSize = mCachedViews.size();
                     if (cachedViewSize == mViewCacheMax && cachedViewSize > 0) {
@@ -4752,7 +4671,7 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
             }
             // even if the holder is not removed, we still call this method so that it is removed
             // from view holder lists.
-            mState.onViewRecycled(holder);
+            mViewInfoStore.removeViewHolder(holder);
             if (!cached && !recycled && transientStatePreventsRecycling) {
                 holder.mOwnerRecyclerView = null;
             }
@@ -4773,6 +4692,7 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
         void quickRecycleScrapView(View view) {
             final ViewHolder holder = getChildViewHolderInt(view);
             holder.mScrapContainer = null;
+            holder.mInChangeScrap = false;
             holder.clearReturnedFromScrapFlag();
             recycleViewHolderInternal(holder);
         }
@@ -4788,18 +4708,20 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
          */
         void scrapView(View view) {
             final ViewHolder holder = getChildViewHolderInt(view);
-            holder.setScrapContainer(this);
-            if (!holder.isChanged() || !supportsChangeAnimations()) {
+            if (holder.hasAnyOfTheFlags(ViewHolder.FLAG_REMOVED | ViewHolder.FLAG_INVALID)
+                    || !holder.isUpdated() || canReuseUpdatedViewHolder(holder)) {
                 if (holder.isInvalid() && !holder.isRemoved() && !mAdapter.hasStableIds()) {
                     throw new IllegalArgumentException("Called scrap view with an invalid view."
                             + " Invalid views cannot be reused from scrap, they should rebound from"
                             + " recycler pool.");
                 }
+                holder.setScrapContainer(this, false);
                 mAttachedScrap.add(holder);
             } else {
                 if (mChangedScrap == null) {
                     mChangedScrap = new ArrayList<ViewHolder>();
                 }
+                holder.setScrapContainer(this, true);
                 mChangedScrap.add(holder);
             }
         }
@@ -4811,12 +4733,13 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
          * until it is explicitly removed and recycled.</p>
          */
         void unscrapView(ViewHolder holder) {
-            if (!holder.isChanged() || !supportsChangeAnimations() || mChangedScrap == null) {
-                mAttachedScrap.remove(holder);
-            } else {
+            if (holder.mInChangeScrap) {
                 mChangedScrap.remove(holder);
+            } else {
+                mAttachedScrap.remove(holder);
             }
             holder.mScrapContainer = null;
+            holder.mInChangeScrap = false;
             holder.clearReturnedFromScrapFlag();
         }
 
@@ -4830,6 +4753,9 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
 
         void clearScrap() {
             mAttachedScrap.clear();
+            if (mChangedScrap != null) {
+                mChangedScrap.clear();
+            }
         }
 
         ViewHolder getChangedScrapViewForPosition(int position) {
@@ -4894,8 +4820,20 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
             if (!dryRun) {
                 View view = mChildHelper.findHiddenNonRemovedView(position, type);
                 if (view != null) {
-                    // ending the animation should cause it to get recycled before we reuse it
-                    mItemAnimator.endAnimation(getChildViewHolder(view));
+                    // This View is good to be used. We just need to unhide, detach and move to the
+                    // scrap list.
+                    final ViewHolder vh = getChildViewHolderInt(view);
+                    mChildHelper.unhide(view);
+                    int layoutIndex = mChildHelper.indexOfChild(view);
+                    if (layoutIndex == RecyclerView.NO_POSITION) {
+                        throw new IllegalStateException("layout index should not be -1 after "
+                                + "unhiding a view:" + vh);
+                    }
+                    mChildHelper.detachViewFromParent(layoutIndex);
+                    scrapView(view);
+                    vh.addFlags(ViewHolder.FLAG_RETURNED_FROM_SCRAP
+                            | ViewHolder.FLAG_BOUNCED_FROM_HIDDEN_LIST);
+                    return vh;
                 }
             }
 
@@ -4943,6 +4881,8 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
                         }
                         return holder;
                     } else if (!dryRun) {
+                        // if we are running animations, it is actually better to keep it in scrap
+                        // but this would force layout manager to lay it out which would be bad.
                         // Recycle this scrap. Type mismatch.
                         mAttachedScrap.remove(i);
                         removeDetachedView(holder.itemView, false);
@@ -4977,7 +4917,7 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
                 mAdapter.onViewRecycled(holder);
             }
             if (mState != null) {
-                mState.onViewRecycled(holder);
+                mViewInfoStore.removeViewHolder(holder);
             }
             if (DEBUG) Log.d(TAG, "dispatchViewRecycled: " + holder);
         }
@@ -6276,14 +6216,14 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
             final ViewHolder holder = getChildViewHolderInt(child);
             if (disappearing || holder.isRemoved()) {
                 // these views will be hidden at the end of the layout pass.
-                mRecyclerView.mState.addToDisappearingList(child);
+                mRecyclerView.mViewInfoStore.addToDisappearedInLayout(holder);
             } else {
                 // This may look like unnecessary but may happen if layout manager supports
                 // predictive layouts and adapter removed then re-added the same item.
                 // In this case, added version will be visible in the post layout (because add is
                 // deferred) but RV will still bind it to the same View.
                 // So if a View re-appears in post layout pass, remove it from disappearing list.
-                mRecyclerView.mState.removeFromDisappearingList(child);
+                mRecyclerView.mViewInfoStore.removeFromDisappearedInLayout(holder);
             }
             final LayoutParams lp = (LayoutParams) child.getLayoutParams();
             if (holder.wasReturnedFromScrap() || holder.isScrap()) {
@@ -6485,9 +6425,9 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
         public void attachView(View child, int index, LayoutParams lp) {
             ViewHolder vh = getChildViewHolderInt(child);
             if (vh.isRemoved()) {
-                mRecyclerView.mState.addToDisappearingList(child);
+                mRecyclerView.mViewInfoStore.addToDisappearedInLayout(vh);
             } else {
-                mRecyclerView.mState.removeFromDisappearingList(child);
+                mRecyclerView.mViewInfoStore.removeFromDisappearedInLayout(vh);
             }
             mChildHelper.attachViewToParent(child, index, lp, vh.isRemoved());
             if (DISPATCH_TEMP_DETACH)  {
@@ -6785,7 +6725,7 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
             }
             final ViewHolder vh = getChildViewHolderInt(view);
             vh.addFlags(ViewHolder.FLAG_IGNORE);
-            mRecyclerView.mState.onViewIgnored(vh);
+            mRecyclerView.mViewInfoStore.removeViewHolder(vh);
         }
 
         /**
@@ -6827,7 +6767,7 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
                 }
                 return;
             }
-            if (viewHolder.isInvalid() && !viewHolder.isRemoved() && !viewHolder.isChanged() &&
+            if (viewHolder.isInvalid() && !viewHolder.isRemoved() &&
                     !mRecyclerView.mAdapter.hasStableIds()) {
                 removeViewAt(index);
                 recycler.recycleViewHolderInternal(viewHolder);
@@ -8236,12 +8176,6 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
         static final int FLAG_RETURNED_FROM_SCRAP = 1 << 5;
 
         /**
-         * This ViewHolder's contents have changed. This flag is used as an indication that
-         * change animations may be used, if supported by the ItemAnimator.
-         */
-        static final int FLAG_CHANGED = 1 << 6;
-
-        /**
          * This ViewHolder is fully managed by the LayoutManager. We do not scrap, recycle or remove
          * it unless LayoutManager is replaced.
          * It is still fully visible to the LayoutManager.
@@ -8268,6 +8202,31 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
          */
         static final int FLAG_ADAPTER_FULLUPDATE = 1 << 10;
 
+        /**
+         * Used by ItemAnimator when a ViewHolder's position changes
+         */
+        static final int FLAG_MOVED = 1 << 11;
+
+        /**
+         * Used by ItemAnimator when a ViewHolder appears in pre-layout
+         */
+        static final int FLAG_APPEARED_IN_PRE_LAYOUT = 1 << 12;
+
+        /**
+         * Used when a ViewHolder starts the layout pass as a hidden ViewHolder but is re-used from
+         * hidden list (as if it was scrap) without being recycled in between.
+         *
+         * When a ViewHolder is hidden, there are 2 paths it can be re-used:
+         *   a) Animation ends, view is recycled and used from the recycle pool.
+         *   b) LayoutManager asks for the View for that position while the ViewHolder is hidden.
+         *
+         * This flag is used to represent "case b" where the ViewHolder is reused without being
+         * recycled (thus "bounced" from the hidden list). This state requires special handling
+         * because the ViewHolder must be added to pre layout maps for animations as if it was
+         * already there.
+         */
+        static final int FLAG_BOUNCED_FROM_HIDDEN_LIST = 1 << 13;
+
         private int mFlags;
 
         private static final List<Object> FULLUPDATE_PAYLOADS = Collections.EMPTY_LIST;
@@ -8280,6 +8239,8 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
         // If non-null, view is currently considered scrap and may be reused for other data by the
         // scrap container.
         private Recycler mScrapContainer = null;
+        // Keeps whether this ViewHolder lives in Change scrap or Attached scrap
+        private boolean mInChangeScrap = false;
 
         // Saves isImportantForAccessibility value for the view item while it's in hidden state and
         // marked as unimportant for accessibility.
@@ -8460,8 +8421,9 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
             mFlags = mFlags & ~FLAG_IGNORE;
         }
 
-        void setScrapContainer(Recycler recycler) {
+        void setScrapContainer(Recycler recycler, boolean isChangeScrap) {
             mScrapContainer = recycler;
+            mInChangeScrap = isChangeScrap;
         }
 
         boolean isInvalid() {
@@ -8470,10 +8432,6 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
 
         boolean needsUpdate() {
             return (mFlags & FLAG_UPDATE) != 0;
-        }
-
-        boolean isChanged() {
-            return (mFlags & FLAG_CHANGED) != 0;
         }
 
         boolean isBound() {
@@ -8579,16 +8537,18 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
             final StringBuilder sb = new StringBuilder("ViewHolder{" +
                     Integer.toHexString(hashCode()) + " position=" + mPosition + " id=" + mItemId +
                     ", oldPos=" + mOldPosition + ", pLpos:" + mPreLayoutPosition);
-            if (isScrap()) sb.append(" scrap");
+            if (isScrap()) {
+                sb.append(" scrap ")
+                        .append(mInChangeScrap ? "[changeScrap]" : "[attachedScrap]");
+            }
             if (isInvalid()) sb.append(" invalid");
             if (!isBound()) sb.append(" unbound");
             if (needsUpdate()) sb.append(" update");
             if (isRemoved()) sb.append(" removed");
             if (shouldIgnore()) sb.append(" ignored");
-            if (isChanged()) sb.append(" changed");
             if (isTmpDetached()) sb.append(" tmpDetached");
             if (!isRecyclable()) sb.append(" not recyclable(" + mIsRecyclableCount + ")");
-            if (isAdapterPositionUnknown()) sb.append("undefined adapter position");
+            if (isAdapterPositionUnknown()) sb.append(" undefined adapter position");
 
             if (itemView.getParent() == null) sb.append(" no parent");
             sb.append("}");
@@ -8650,6 +8610,10 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
          */
         private boolean doesTransientStatePreventRecycling() {
             return (mFlags & FLAG_NOT_RECYCLABLE) == 0 && ViewCompat.hasTransientState(itemView);
+        }
+
+        boolean isUpdated() {
+            return (mFlags & FLAG_UPDATE) != 0;
         }
     }
 
@@ -8785,7 +8749,7 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
          * @return true if the item the view corresponds to was changed in the data set
          */
         public boolean isItemChanged() {
-            return mViewHolder.isChanged();
+            return mViewHolder.isUpdated();
         }
 
         /**
@@ -9320,7 +9284,11 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
         }
     }
 
-    static class SavedState extends android.view.View.BaseSavedState {
+    /**
+     * This is public so that the CREATOR can be access on cold launch.
+     * @hide
+     */
+    public static class SavedState extends android.view.View.BaseSavedState {
 
         Parcelable mLayoutState;
 
@@ -9375,15 +9343,6 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
     public static class State {
 
         private int mTargetPosition = RecyclerView.NO_POSITION;
-        ArrayMap<ViewHolder, ItemHolderInfo> mPreLayoutHolderMap =
-                new ArrayMap<ViewHolder, ItemHolderInfo>();
-        ArrayMap<ViewHolder, ItemHolderInfo> mPostLayoutHolderMap =
-                new ArrayMap<ViewHolder, ItemHolderInfo>();
-        // nullable
-        ArrayMap<Long, ViewHolder> mOldChangedHolders = new ArrayMap<Long, ViewHolder>();
-
-        // we use this like a set
-        final List<View> mDisappearingViewsInLayoutPass = new ArrayList<View>();
 
         private SparseArray<Object> mData;
 
@@ -9410,6 +9369,8 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
         private boolean mRunSimpleAnimations = false;
 
         private boolean mRunPredictiveAnimations = false;
+
+        private boolean mTrackOldChangeHolders = false;
 
         State reset() {
             mTargetPosition = RecyclerView.NO_POSITION;
@@ -9547,45 +9508,10 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
                     mItemCount;
         }
 
-        void onViewRecycled(ViewHolder holder) {
-            mPreLayoutHolderMap.remove(holder);
-            mPostLayoutHolderMap.remove(holder);
-            if (mOldChangedHolders != null) {
-                removeFrom(mOldChangedHolders, holder);
-            }
-            mDisappearingViewsInLayoutPass.remove(holder.itemView);
-            // holder cannot be in new list.
-        }
-
-        public void onViewIgnored(ViewHolder holder) {
-            onViewRecycled(holder);
-        }
-
-        private void removeFrom(ArrayMap<Long, ViewHolder> holderMap, ViewHolder holder) {
-            for (int i = holderMap.size() - 1; i >= 0; i --) {
-                if (holder == holderMap.valueAt(i)) {
-                    holderMap.removeAt(i);
-                    return;
-                }
-            }
-        }
-
-        void removeFromDisappearingList(View child) {
-            mDisappearingViewsInLayoutPass.remove(child);
-        }
-
-        void addToDisappearingList(View child) {
-            if (!mDisappearingViewsInLayoutPass.contains(child)) {
-                mDisappearingViewsInLayoutPass.add(child);
-            }
-        }
-
         @Override
         public String toString() {
             return "State{" +
                     "mTargetPosition=" + mTargetPosition +
-                    ", mPreLayoutHolderMap=" + mPreLayoutHolderMap +
-                    ", mPostLayoutHolderMap=" + mPostLayoutHolderMap +
                     ", mData=" + mData +
                     ", mItemCount=" + mItemCount +
                     ", mPreviousLayoutItemCount=" + mPreviousLayoutItemCount +
@@ -9608,71 +9534,21 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
     private class ItemAnimatorRestoreListener implements ItemAnimator.ItemAnimatorListener {
 
         @Override
-        public void onRemoveFinished(ViewHolder item) {
+        public void onAnimationFinished(ViewHolder item) {
             item.setIsRecyclable(true);
-            if (!removeAnimatingView(item.itemView) && item.isTmpDetached()) {
-                removeDetachedView(item.itemView, false);
-            }
-        }
-
-        @Override
-        public void onAddFinished(ViewHolder item) {
-            item.setIsRecyclable(true);
-            if (!item.shouldBeKeptAsChild()) {
-                removeAnimatingView(item.itemView);
-            }
-        }
-
-        @Override
-        public void onMoveFinished(ViewHolder item) {
-            item.setIsRecyclable(true);
-            if (!item.shouldBeKeptAsChild()) {
-                removeAnimatingView(item.itemView);
-            }
-        }
-
-        @Override
-        public void onChangeFinished(ViewHolder item) {
-            item.setIsRecyclable(true);
-            /**
-             * We check both shadowed and shadowing because a ViewHolder may get both roles at the
-             * same time.
-             *
-             * Assume this flow:
-             * item X is represented by VH_1. Then itemX changes, so we create VH_2 .
-             * RV sets the following and calls item animator:
-             * VH_1.shadowed = VH_2;
-             * VH_1.mChanged = true;
-             * VH_2.shadowing =VH_1;
-             *
-             * Then, before the first change finishes, item changes again so we create VH_3.
-             * RV sets the following and calls item animator:
-             * VH_2.shadowed = VH_3
-             * VH_2.mChanged = true
-             * VH_3.shadowing = VH_2
-             *
-             * Because VH_2 already has an animation, it will be cancelled. At this point VH_2 has
-             * both shadowing and shadowed fields set. Shadowing information is obsolete now
-             * because the first animation where VH_2 is newViewHolder is not valid anymore.
-             * We ended up in this case because VH_2 played both roles. On the other hand,
-             * we DO NOT want to clear its changed flag.
-             *
-             * If second change was simply reverting first change, we would find VH_1 in
-             * {@link Recycler#getScrapViewForPosition(int, int, boolean)} and recycle it before
-             * re-using
-             */
             if (item.mShadowedHolder != null && item.mShadowingHolder == null) { // old vh
                 item.mShadowedHolder = null;
-                item.setFlags(~ViewHolder.FLAG_CHANGED, item.mFlags);
             }
             // always null this because an OldViewHolder can never become NewViewHolder w/o being
             // recycled.
             item.mShadowingHolder = null;
             if (!item.shouldBeKeptAsChild()) {
-                removeAnimatingView(item.itemView);
+                if (!removeAnimatingView(item.itemView) && item.isTmpDetached()) {
+                    removeDetachedView(item.itemView, false);
+                }
             }
         }
-    };
+    }
 
     /**
      * This class defines the animations that take place on items as changes are made
@@ -9680,22 +9556,78 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
      *
      * Subclasses of ItemAnimator can be used to implement custom animations for actions on
      * ViewHolder items. The RecyclerView will manage retaining these items while they
-     * are being animated, but implementors must call the appropriate "Starting"
-     * ({@link #dispatchRemoveStarting(ViewHolder)}, {@link #dispatchMoveStarting(ViewHolder)},
-     * {@link #dispatchChangeStarting(ViewHolder, boolean)}, or
-     * {@link #dispatchAddStarting(ViewHolder)})
-     * and "Finished" ({@link #dispatchRemoveFinished(ViewHolder)},
-     * {@link #dispatchMoveFinished(ViewHolder)},
-     * {@link #dispatchChangeFinished(ViewHolder, boolean)},
-     * or {@link #dispatchAddFinished(ViewHolder)}) methods when each item animation is
-     * being started and ended.
+     * are being animated, but implementors must call {@link #dispatchAnimationFinished(ViewHolder)}
+     * when a ViewHolder's animation is finished. In other words, there must be a matching
+     * {@link #dispatchAnimationFinished(ViewHolder)} call for each
+     * {@link #animateAppearance(ViewHolder, ItemHolderInfo, ItemHolderInfo) animateAppearance()},
+     * {@link #animateChange(ViewHolder, ViewHolder, ItemHolderInfo, ItemHolderInfo)
+     * animateChange()}
+     * {@link #animatePersistence(ViewHolder, ItemHolderInfo, ItemHolderInfo) animatePersistence()},
+     * and
+     * {@link #animateDisappearance(ViewHolder, ItemHolderInfo, ItemHolderInfo)
+     * animateDisappearance()} call.
      *
-     * <p>By default, RecyclerView uses {@link DefaultItemAnimator}</p>
+     * <p>By default, RecyclerView uses {@link DefaultItemAnimator}.</p>
      *
      * @see #setItemAnimator(ItemAnimator)
      */
+    @SuppressWarnings("UnusedParameters")
     public static abstract class ItemAnimator {
 
+        /**
+         * The Item represented by this ViewHolder is updated.
+         * <p>
+         * @see #recordPreLayoutInformation(State, ViewHolder, int, List)
+         */
+        public static final int FLAG_CHANGED = ViewHolder.FLAG_UPDATE;
+
+        /**
+         * The Item represented by this ViewHolder is removed from the adapter.
+         * <p>
+         * @see #recordPreLayoutInformation(State, ViewHolder, int, List)
+         */
+        public static final int FLAG_REMOVED = ViewHolder.FLAG_REMOVED;
+
+        /**
+         * Adapter {@link Adapter#notifyDataSetChanged()} has been called and the content
+         * represented by this ViewHolder is invalid.
+         * <p>
+         * @see #recordPreLayoutInformation(State, ViewHolder, int, List)
+         */
+        public static final int FLAG_INVALIDATED = ViewHolder.FLAG_INVALID;
+
+        /**
+         * The position of the Item represented by this ViewHolder has been changed. This flag is
+         * not bound to {@link Adapter#notifyItemMoved(int, int)}. It might be set in response to
+         * any adapter change that may have a side effect on this item. (e.g. The item before this
+         * one has been removed from the Adapter).
+         * <p>
+         * @see #recordPreLayoutInformation(State, ViewHolder, int, List)
+         */
+        public static final int FLAG_MOVED = ViewHolder.FLAG_MOVED;
+
+        /**
+         * This ViewHolder was not laid out but has been added to the layout in pre-layout state
+         * by the {@link LayoutManager}. This means that the item was already in the Adapter but
+         * invisible and it may become visible in the post layout phase. LayoutManagers may prefer
+         * to add new items in pre-layout to specify their virtual location when they are invisible
+         * (e.g. to specify the item should <i>animate in</i> from below the visible area).
+         * <p>
+         * @see #recordPreLayoutInformation(State, ViewHolder, int, List)
+         */
+        public static final int FLAG_APPEARED_IN_PRE_LAYOUT
+                = ViewHolder.FLAG_APPEARED_IN_PRE_LAYOUT;
+
+        /**
+         * The set of flags that might be passed to
+         * {@link #recordPreLayoutInformation(State, ViewHolder, int, List)}.
+         */
+        @IntDef(flag=true, value={
+                FLAG_CHANGED, FLAG_REMOVED, FLAG_MOVED, FLAG_INVALIDATED,
+                FLAG_APPEARED_IN_PRE_LAYOUT
+        })
+        @Retention(RetentionPolicy.SOURCE)
+        public @interface AdapterChanges {}
         private ItemAnimatorListener mListener = null;
         private ArrayList<ItemAnimatorFinishedListener> mFinishedListeners =
                 new ArrayList<ItemAnimatorFinishedListener>();
@@ -9704,8 +9636,6 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
         private long mRemoveDuration = 120;
         private long mMoveDuration = 250;
         private long mChangeDuration = 250;
-
-        private boolean mSupportsChangeAnimations = true;
 
         /**
          * Gets the current duration for which all move animations will run.
@@ -9780,35 +9710,6 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
         }
 
         /**
-         * Returns whether this ItemAnimator supports animations of change events.
-         *
-         * @return true if change animations are supported, false otherwise
-         */
-        public boolean getSupportsChangeAnimations() {
-            return mSupportsChangeAnimations;
-        }
-
-        /**
-         * Sets whether this ItemAnimator supports animations of item change events.
-         * If you set this property to false, actions on the data set which change the
-         * contents of items will not be animated. What those animations are is left
-         * up to the discretion of the ItemAnimator subclass, in its
-         * {@link #animateChange(ViewHolder, ViewHolder, int, int, int, int)} implementation.
-         * The value of this property is true by default.
-         *
-         * @see Adapter#notifyItemChanged(int)
-         * @see Adapter#notifyItemRangeChanged(int, int)
-         *
-         * @param supportsChangeAnimations true if change animations are supported by
-         * this ItemAnimator, false otherwise. If the property is false, the ItemAnimator
-         * will not receive a call to
-         * {@link #animateChange(ViewHolder, ViewHolder, int, int, int, int)} when changes occur.
-         */
-        public void setSupportsChangeAnimations(boolean supportsChangeAnimations) {
-            mSupportsChangeAnimations = supportsChangeAnimations;
-        }
-
-        /**
          * Internal only:
          * Sets the listener that must be called when the animator is finished
          * animating the item (or immediately if no animation happens). This is set
@@ -9821,209 +9722,246 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
         }
 
         /**
+         * Called by the RecyclerView before the layout begins. Item animator should record
+         * necessary information about the View before it is potentially rebound, moved or removed.
+         * <p>
+         * The data returned from this method will be passed to the related <code>animate**</code>
+         * methods.
+         * <p>
+         * Note that this method may be called after pre-layout phase if LayoutManager adds new
+         * Views to the layout in pre-layout pass.
+         * <p>
+         * The default implementation returns an {@link ItemHolderInfo} which holds the bounds of
+         * the View and the adapter change flags.
+         *
+         * @param state       The current State of RecyclerView which includes some useful data
+         *                    about the layout that will be calculated.
+         * @param viewHolder  The ViewHolder whose information should be recorded.
+         * @param changeFlags Additional information about what changes happened in the Adapter
+         *                    about the Item represented by this ViewHolder. For instance, if
+         *                    item is deleted from the adapter, {@link #FLAG_REMOVED} will be set.
+         * @param payloads    The payload list that was previously passed to
+         *                    {@link Adapter#notifyItemChanged(int, Object)} or
+         *                    {@link Adapter#notifyItemRangeChanged(int, int, Object)}.
+         *
+         * @return An ItemHolderInfo instance that preserves necessary information about the
+         * ViewHolder. This object will be passed back to related <code>animate**</code> methods
+         * after layout is complete.
+         *
+         * @see #recordPostLayoutInformation(State, ViewHolder)
+         * @see #animateAppearance(ViewHolder, ItemHolderInfo, ItemHolderInfo)
+         * @see #animateDisappearance(ViewHolder, ItemHolderInfo)
+         * @see #animateChange(ViewHolder, ViewHolder, ItemHolderInfo, ItemHolderInfo)
+         * @see #animatePersistence(ViewHolder, ItemHolderInfo, ItemHolderInfo)
+         */
+        public @NonNull ItemHolderInfo recordPreLayoutInformation(@NonNull State state,
+                @NonNull ViewHolder viewHolder, @AdapterChanges int changeFlags,
+                @NonNull List<Object> payloads) {
+            return obtainHolderInfo().setFrom(viewHolder);
+        }
+
+        /**
+         * Called by the RecyclerView after the layout is complete. Item animator should record
+         * necessary information about the View's final state.
+         * <p>
+         * The data returned from this method will be passed to the related <code>animate**</code>
+         * methods.
+         * <p>
+         * The default implementation returns an {@link ItemHolderInfo} which holds the bounds of
+         * the View.
+         *
+         * @param state      The current State of RecyclerView which includes some useful data about
+         *                   the layout that will be calculated.
+         * @param viewHolder The ViewHolder whose information should be recorded.
+         *
+         * @return An ItemHolderInfo that preserves necessary information about the ViewHolder.
+         * This object will be passed back to related <code>animate**</code> methods when
+         * RecyclerView decides how items should be animated.
+         *
+         * @see #recordPreLayoutInformation(State, ViewHolder, int, List)
+         * @see #animateAppearance(ViewHolder, ItemHolderInfo, ItemHolderInfo)
+         * @see #animateDisappearance(ViewHolder, ItemHolderInfo, ItemHolderInfo)
+         * @see #animateChange(ViewHolder, ViewHolder, ItemHolderInfo, ItemHolderInfo)
+         * @see #animatePersistence(ViewHolder, ItemHolderInfo, ItemHolderInfo)
+         */
+        public @NonNull ItemHolderInfo recordPostLayoutInformation(@NonNull State state,
+                @NonNull ViewHolder viewHolder) {
+            return obtainHolderInfo().setFrom(viewHolder);
+        }
+
+        /**
+         * Called by the RecyclerView when a ViewHolder has disappeared from the layout.
+         * <p>
+         * This means that the View was a child of the LayoutManager when layout started but has
+         * been removed by the LayoutManager. It might have been removed from the adapter or simply
+         * become invisible due to other factors. You can distinguish these two cases by checking
+         * the change flags that were passed to
+         * {@link #recordPreLayoutInformation(State, ViewHolder, int, List)}.
+         * <p>
+         * If LayoutManager supports predictive animations, it might provide a target disappear
+         * location for the View by laying it out in that location. When that happens,
+         * RecyclerView will call {@link #recordPostLayoutInformation(State, ViewHolder)} and the
+         * response of that call will be passed to this method as the <code>postLayoutInfo</code>.
+         * <p>
+         * ItemAnimator must call {@link #dispatchAnimationFinished(ViewHolder)} when the animation
+         * is complete (or instantly call {@link #dispatchAnimationFinished(ViewHolder)} if it
+         * decides not to animate the view).
+         *
+         * @param viewHolder    The ViewHolder which should be animated
+         * @param preLayoutInfo The information that was returned from
+         *                      {@link #recordPreLayoutInformation(State, ViewHolder, int, List)}.
+         * @param postLayoutInfo The information that was returned from
+         *                       {@link #recordPostLayoutInformation(State, ViewHolder)}. Might be
+         *                       null if the LayoutManager did not layout the item.
+         *
+         * @return true if a later call to {@link #runPendingAnimations()} is requested,
+         * false otherwise.
+         */
+        public abstract boolean animateDisappearance(@NonNull ViewHolder viewHolder,
+                @NonNull ItemHolderInfo preLayoutInfo, @Nullable ItemHolderInfo postLayoutInfo);
+
+        /**
+         * Called by the RecyclerView when a ViewHolder is added to the layout.
+         * <p>
+         * In detail, this means that the ViewHolder was <b>not</b> a child when the layout started
+         * but has  been added by the LayoutManager. It might be newly added to the adapter or
+         * simply become visible due to other factors.
+         * <p>
+         * ItemAnimator must call {@link #dispatchAnimationFinished(ViewHolder)} when the animation
+         * is complete (or instantly call {@link #dispatchAnimationFinished(ViewHolder)} if it
+         * decides not to animate the view).
+         *
+         * @param viewHolder     The ViewHolder which should be animated
+         * @param preLayoutInfo  The information that was returned from
+         *                       {@link #recordPreLayoutInformation(State, ViewHolder, int, List)}.
+         *                       Might be null if Item was just added to the adapter or
+         *                       LayoutManager does not support predictive animations or it could
+         *                       not predict that this ViewHolder will become visible.
+         * @param postLayoutInfo The information that was returned from {@link
+         *                       #recordPreLayoutInformation(State, ViewHolder, int, List)}.
+         *
+         * @return true if a later call to {@link #runPendingAnimations()} is requested,
+         * false otherwise.
+         */
+        public abstract boolean animateAppearance(@NonNull ViewHolder viewHolder,
+                @Nullable ItemHolderInfo preLayoutInfo, @NonNull ItemHolderInfo postLayoutInfo);
+
+        /**
+         * Called by the RecyclerView when a ViewHolder is present in both before and after the
+         * layout and RecyclerView has not received a {@link Adapter#notifyItemChanged(int)} call
+         * for it or a {@link Adapter#notifyDataSetChanged()} call.
+         * <p>
+         * This ViewHolder still represents the same data that it was representing when the layout
+         * started but its position / size may be changed by the LayoutManager.
+         * <p>
+         * If the Item's layout position didn't change, RecyclerView still calls this method because
+         * it does not track this information (or does not necessarily know that an animation is
+         * not required). Your ItemAnimator should handle this case and if there is nothing to
+         * animate, it should call {@link #dispatchAnimationFinished(ViewHolder)} and return
+         * <code>false</code>.
+         * <p>
+         * ItemAnimator must call {@link #dispatchAnimationFinished(ViewHolder)} when the animation
+         * is complete (or instantly call {@link #dispatchAnimationFinished(ViewHolder)} if it
+         * decides not to animate the view).
+         *
+         * @param viewHolder     The ViewHolder which should be animated
+         * @param preLayoutInfo  The information that was returned from
+         *                       {@link #recordPreLayoutInformation(State, ViewHolder, int, List)}.
+         * @param postLayoutInfo The information that was returned from {@link
+         *                       #recordPreLayoutInformation(State, ViewHolder, int, List)}.
+         *
+         * @return true if a later call to {@link #runPendingAnimations()} is requested,
+         * false otherwise.
+         */
+        public abstract boolean animatePersistence(@NonNull ViewHolder viewHolder,
+                @NonNull ItemHolderInfo preLayoutInfo, @NonNull ItemHolderInfo postLayoutInfo);
+
+        /**
+         * Called by the RecyclerView when an adapter item is present both before and after the
+         * layout and RecyclerView has received a {@link Adapter#notifyItemChanged(int)} call
+         * for it. This method may also be called when
+         * {@link Adapter#notifyDataSetChanged()} is called and adapter has stable ids so that
+         * RecyclerView could still rebind views to the same ViewHolders. If viewType changes when
+         * {@link Adapter#notifyDataSetChanged()} is called, this method <b>will not</b> be called,
+         * instead, {@link #animateAppearance(ViewHolder, ItemHolderInfo, ItemHolderInfo)} will be
+         * called for the new ViewHolder and the old one will be recycled.
+         * <p>
+         * If this method is called due to a {@link Adapter#notifyDataSetChanged()} call, there is
+         * a good possibility that item contents didn't really change but it is rebound from the
+         * adapter. {@link DefaultItemAnimator} will skip animating the View if its location on the
+         * screen didn't change and your animator should handle this case as well and avoid creating
+         * unnecessary animations.
+         * <p>
+         * When an item is updated, ItemAnimator has a chance to ask RecyclerView to keep the
+         * previous presentation of the item as-is and supply a new ViewHolder for the updated
+         * presentation (see: {@link #canReuseUpdatedViewHolder(ViewHolder)}.
+         * This is useful if you don't know the contents of the Item and would like
+         * to cross-fade the old and the new one ({@link DefaultItemAnimator} uses this technique).
+         * <p>
+         * When you are writing a custom item animator for your layout, it might be more performant
+         * and elegant to re-use the same ViewHolder and animate the content changes manually.
+         * <p>
+         * When {@link Adapter#notifyItemChanged(int)} is called, the Item's view type may change.
+         * If the Item's view type has changed or ItemAnimator returned <code>false</code> for
+         * this ViewHolder when {@link #canReuseUpdatedViewHolder(ViewHolder)} was called, the
+         * <code>oldHolder</code> and <code>newHolder</code> will be different ViewHolder instances
+         * which represent the same Item. In that case, only the new ViewHolder is visible
+         * to the LayoutManager but RecyclerView keeps old ViewHolder attached for animations.
+         * <p>
+         * ItemAnimator must call {@link #dispatchAnimationFinished(ViewHolder)} for each distinct
+         * ViewHolder when their animation is complete
+         * (or instantly call {@link #dispatchAnimationFinished(ViewHolder)} if it decides not to
+         * animate the view).
+         * <p>
+         *  If oldHolder and newHolder are the same instance, you should call
+         * {@link #dispatchAnimationFinished(ViewHolder)} <b>only once</b>.
+         *
+         * @param oldHolder     The ViewHolder before the layout is started, might be the same
+         *                      instance with newHolder.
+         * @param newHolder     The ViewHolder after the layout is finished, might be the same
+         *                      instance with oldHolder.
+         * @param preLayoutInfo  The information that was returned from
+         *                       {@link #recordPreLayoutInformation(State, ViewHolder, int, List)}.
+         * @param postLayoutInfo The information that was returned from {@link
+         *                       #recordPreLayoutInformation(State, ViewHolder, int, List)}.
+         *
+         * @return true if a later call to {@link #runPendingAnimations()} is requested,
+         * false otherwise.
+         */
+        public abstract boolean animateChange(@NonNull ViewHolder oldHolder,
+                @NonNull ViewHolder newHolder,
+                @NonNull ItemHolderInfo preLayoutInfo, @NonNull ItemHolderInfo postLayoutInfo);
+
+        @AdapterChanges static int buildAdapterChangeFlagsForAnimations(ViewHolder viewHolder) {
+            int flags = viewHolder.mFlags & (FLAG_INVALIDATED | FLAG_REMOVED | FLAG_CHANGED);
+            if (viewHolder.isInvalid()) {
+                return FLAG_INVALIDATED;
+            }
+            if ((flags & FLAG_INVALIDATED) == 0) {
+                final int oldPos = viewHolder.getOldPosition();
+                final int pos = viewHolder.getAdapterPosition();
+                if (oldPos != NO_POSITION && pos != NO_POSITION && oldPos != pos){
+                    flags |= FLAG_MOVED;
+                }
+            }
+            return flags;
+        }
+
+        /**
          * Called when there are pending animations waiting to be started. This state
-         * is governed by the return values from {@link #animateAdd(ViewHolder) animateAdd()},
-         * {@link #animateMove(ViewHolder, int, int, int, int) animateMove()}, and
-         * {@link #animateRemove(ViewHolder) animateRemove()}, which inform the
-         * RecyclerView that the ItemAnimator wants to be called later to start the
-         * associated animations. runPendingAnimations() will be scheduled to be run
-         * on the next frame.
+         * is governed by the return values from
+         * {@link #animateAppearance(ViewHolder, ItemHolderInfo, ItemHolderInfo)
+         * animateAppearance()},
+         * {@link #animateChange(ViewHolder, ViewHolder, ItemHolderInfo, ItemHolderInfo)
+         * animateChange()}
+         * {@link #animatePersistence(ViewHolder, ItemHolderInfo, ItemHolderInfo)
+         * animatePersistence()}, and
+         * {@link #animateDisappearance(ViewHolder, ItemHolderInfo, ItemHolderInfo)
+         * animateDisappearance()}, which inform the RecyclerView that the ItemAnimator wants to be
+         * called later to start the associated animations. runPendingAnimations() will be scheduled
+         * to be run on the next frame.
          */
         abstract public void runPendingAnimations();
-
-        /**
-         * Called when an item is removed from the RecyclerView. Implementors can choose
-         * whether and how to animate that change, but must always call
-         * {@link #dispatchRemoveFinished(ViewHolder)} when done, either
-         * immediately (if no animation will occur) or after the animation actually finishes.
-         * The return value indicates whether an animation has been set up and whether the
-         * ItemAnimator's {@link #runPendingAnimations()} method should be called at the
-         * next opportunity. This mechanism allows ItemAnimator to set up individual animations
-         * as separate calls to {@link #animateAdd(ViewHolder) animateAdd()},
-         * {@link #animateMove(ViewHolder, int, int, int, int) animateMove()},
-         * {@link #animateRemove(ViewHolder) animateRemove()}, and
-         * {@link #animateChange(ViewHolder, ViewHolder, int, int, int, int)} come in one by one,
-         * then start the animations together in the later call to {@link #runPendingAnimations()}.
-         *
-         * <p>This method may also be called for disappearing items which continue to exist in the
-         * RecyclerView, but for which the system does not have enough information to animate
-         * them out of view. In that case, the default animation for removing items is run
-         * on those items as well.</p>
-         *
-         * @param holder The item that is being removed.
-         * @return true if a later call to {@link #runPendingAnimations()} is requested,
-         * false otherwise.
-         */
-        abstract public boolean animateRemove(ViewHolder holder);
-
-        /**
-         * Called when an item is added to the RecyclerView. Implementors can choose
-         * whether and how to animate that change, but must always call
-         * {@link #dispatchAddFinished(ViewHolder)} when done, either
-         * immediately (if no animation will occur) or after the animation actually finishes.
-         * The return value indicates whether an animation has been set up and whether the
-         * ItemAnimator's {@link #runPendingAnimations()} method should be called at the
-         * next opportunity. This mechanism allows ItemAnimator to set up individual animations
-         * as separate calls to {@link #animateAdd(ViewHolder) animateAdd()},
-         * {@link #animateMove(ViewHolder, int, int, int, int) animateMove()},
-         * {@link #animateRemove(ViewHolder) animateRemove()}, and
-         * {@link #animateChange(ViewHolder, ViewHolder, int, int, int, int)} come in one by one,
-         * then start the animations together in the later call to {@link #runPendingAnimations()}.
-         *
-         * <p>This method may also be called for appearing items which were already in the
-         * RecyclerView, but for which the system does not have enough information to animate
-         * them into view. In that case, the default animation for adding items is run
-         * on those items as well.</p>
-         *
-         * @param holder The item that is being added.
-         * @return true if a later call to {@link #runPendingAnimations()} is requested,
-         * false otherwise.
-         */
-        abstract public boolean animateAdd(ViewHolder holder);
-
-        /**
-         * Called when an item is moved in the RecyclerView. Implementors can choose
-         * whether and how to animate that change, but must always call
-         * {@link #dispatchMoveFinished(ViewHolder)} when done, either
-         * immediately (if no animation will occur) or after the animation actually finishes.
-         * The return value indicates whether an animation has been set up and whether the
-         * ItemAnimator's {@link #runPendingAnimations()} method should be called at the
-         * next opportunity. This mechanism allows ItemAnimator to set up individual animations
-         * as separate calls to {@link #animateAdd(ViewHolder) animateAdd()},
-         * {@link #animateMove(ViewHolder, int, int, int, int) animateMove()},
-         * {@link #animateRemove(ViewHolder) animateRemove()}, and
-         * {@link #animateChange(ViewHolder, ViewHolder, int, int, int, int)} come in one by one,
-         * then start the animations together in the later call to {@link #runPendingAnimations()}.
-         *
-         * @param holder The item that is being moved.
-         * @return true if a later call to {@link #runPendingAnimations()} is requested,
-         * false otherwise.
-         */
-        abstract public boolean animateMove(ViewHolder holder, int fromX, int fromY,
-                int toX, int toY);
-
-        /**
-         * Called when an item is changed in the RecyclerView, as indicated by a call to
-         * {@link Adapter#notifyItemChanged(int)} or
-         * {@link Adapter#notifyItemRangeChanged(int, int)}.
-         * <p>
-         * Implementers can choose whether and how to animate changes, but must always call
-         * {@link #dispatchChangeFinished(ViewHolder, boolean)} for each non-null ViewHolder,
-         * either immediately (if no animation will occur) or after the animation actually finishes.
-         * The return value indicates whether an animation has been set up and whether the
-         * ItemAnimator's {@link #runPendingAnimations()} method should be called at the
-         * next opportunity. This mechanism allows ItemAnimator to set up individual animations
-         * as separate calls to {@link #animateAdd(ViewHolder) animateAdd()},
-         * {@link #animateMove(ViewHolder, int, int, int, int) animateMove()},
-         * {@link #animateRemove(ViewHolder) animateRemove()}, and
-         * {@link #animateChange(ViewHolder, ViewHolder, int, int, int, int)} come in one by one,
-         * then start the animations together in the later call to {@link #runPendingAnimations()}.
-         *
-         * @param oldHolder The original item that changed.
-         * @param newHolder The new item that was created with the changed content. Might be null
-         * @param fromLeft  Left of the old view holder
-         * @param fromTop   Top of the old view holder
-         * @param toLeft    Left of the new view holder
-         * @param toTop     Top of the new view holder
-         * @return true if a later call to {@link #runPendingAnimations()} is requested,
-         * false otherwise.
-         */
-        abstract public boolean animateChange(ViewHolder oldHolder,
-                ViewHolder newHolder, int fromLeft, int fromTop, int toLeft, int toTop);
-
-
-        /**
-         * Method to be called by subclasses when a remove animation is done.
-         *
-         * @param item The item which has been removed
-         */
-        public final void dispatchRemoveFinished(ViewHolder item) {
-            onRemoveFinished(item);
-            if (mListener != null) {
-                mListener.onRemoveFinished(item);
-            }
-        }
-
-        /**
-         * Method to be called by subclasses when a move animation is done.
-         *
-         * @param item The item which has been moved
-         */
-        public final void dispatchMoveFinished(ViewHolder item) {
-            onMoveFinished(item);
-            if (mListener != null) {
-                mListener.onMoveFinished(item);
-            }
-        }
-
-        /**
-         * Method to be called by subclasses when an add animation is done.
-         *
-         * @param item The item which has been added
-         */
-        public final void dispatchAddFinished(ViewHolder item) {
-            onAddFinished(item);
-            if (mListener != null) {
-                mListener.onAddFinished(item);
-            }
-        }
-
-        /**
-         * Method to be called by subclasses when a change animation is done.
-         *
-         * @see #animateChange(ViewHolder, ViewHolder, int, int, int, int)
-         * @param item The item which has been changed (this method must be called for
-         * each non-null ViewHolder passed into
-         * {@link #animateChange(ViewHolder, ViewHolder, int, int, int, int)}).
-         * @param oldItem true if this is the old item that was changed, false if
-         * it is the new item that replaced the old item.
-         */
-        public final void dispatchChangeFinished(ViewHolder item, boolean oldItem) {
-            onChangeFinished(item, oldItem);
-            if (mListener != null) {
-                mListener.onChangeFinished(item);
-            }
-        }
-
-        /**
-         * Method to be called by subclasses when a remove animation is being started.
-         *
-         * @param item The item being removed
-         */
-        public final void dispatchRemoveStarting(ViewHolder item) {
-            onRemoveStarting(item);
-        }
-
-        /**
-         * Method to be called by subclasses when a move animation is being started.
-         *
-         * @param item The item being moved
-         */
-        public final void dispatchMoveStarting(ViewHolder item) {
-            onMoveStarting(item);
-        }
-
-        /**
-         * Method to be called by subclasses when an add animation is being started.
-         *
-         * @param item The item being added
-         */
-        public final void dispatchAddStarting(ViewHolder item) {
-            onAddStarting(item);
-        }
-
-        /**
-         * Method to be called by subclasses when a change animation is being started.
-         *
-         * @param item The item which has been changed (this method must be called for
-         * each non-null ViewHolder passed into
-         * {@link #animateChange(ViewHolder, ViewHolder, int, int, int, int)}).
-         * @param oldItem true if this is the old item that was changed, false if
-         * it is the new item that replaced the old item.
-         */
-        public final void dispatchChangeStarting(ViewHolder item, boolean oldItem) {
-            onChangeStarting(item, oldItem);
-        }
 
         /**
          * Method called when an animation on a view should be ended immediately.
@@ -10031,9 +9969,8 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
          * animating views can be quickly put into their proper end locations.
          * Implementations should ensure that any animations running on the item
          * are canceled and affected properties are set to their end values.
-         * Also, appropriate dispatch methods (e.g., {@link #dispatchAddFinished(ViewHolder)}
-         * should be called since the animations are effectively done when this
-         * method is called.
+         * Also, {@link #dispatchAnimationFinished(ViewHolder)} should be called for each finished
+         * animation since the animations are effectively done when this method is called.
          *
          * @param item The item for which an animation should be stopped.
          */
@@ -10045,9 +9982,8 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
          * animating views can be quickly put into their proper end locations.
          * Implementations should ensure that any animations running on any items
          * are canceled and affected properties are set to their end values.
-         * Also, appropriate dispatch methods (e.g., {@link #dispatchAddFinished(ViewHolder)}
-         * should be called since the animations are effectively done when this
-         * method is called.
+         * Also, {@link #dispatchAnimationFinished(ViewHolder)} should be called for each finished
+         * animation since the animations are effectively done when this method is called.
          */
         abstract public void endAnimations();
 
@@ -10059,6 +9995,82 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
          * @return true if there are any item animations currently running, false otherwise.
          */
         abstract public boolean isRunning();
+
+        /**
+         * Method to be called by subclasses when an animation is finished.
+         * <p>
+         * For each call RecyclerView makes to
+         * {@link #animateAppearance(ViewHolder, ItemHolderInfo, ItemHolderInfo)
+         * animateAppearance()},
+         * {@link #animatePersistence(ViewHolder, ItemHolderInfo, ItemHolderInfo)
+         * animatePersistence()}, or
+         * {@link #animateDisappearance(ViewHolder, ItemHolderInfo, ItemHolderInfo)
+         * animateDisappearance()}, there
+         * should
+         * be a matching {@link #dispatchAnimationFinished(ViewHolder)} call by the subclass.
+         * <p>
+         * For {@link #animateChange(ViewHolder, ViewHolder, ItemHolderInfo, ItemHolderInfo)
+         * animateChange()}, sublcass should call this method for both the <code>oldHolder</code>
+         * and <code>newHolder</code>  (if they are not the same instance).
+         *
+         * @param viewHolder The ViewHolder whose animation is finished.
+         * @see #onAnimationFinished(ViewHolder)
+         */
+        public final void dispatchAnimationFinished(ViewHolder viewHolder) {
+            onAnimationFinished(viewHolder);
+            if (mListener != null) {
+                mListener.onAnimationFinished(viewHolder);
+            }
+        }
+
+        /**
+         * Called after {@link #dispatchAnimationFinished(ViewHolder)} is called by the
+         * ItemAniamtor.
+         *
+         * @param viewHolder The ViewHolder whose animation is finished. There might still be other
+         *                   animations running on this ViewHolder.
+         * @see #dispatchAnimationFinished(ViewHolder)
+         */
+        public void onAnimationFinished(ViewHolder viewHolder) {
+        }
+
+        /**
+         * Method to be called by subclasses when an animation is started.
+         * <p>
+         * For each call RecyclerView makes to
+         * {@link #animateAppearance(ViewHolder, ItemHolderInfo, ItemHolderInfo)
+         * animateAppearance()},
+         * {@link #animatePersistence(ViewHolder, ItemHolderInfo, ItemHolderInfo)
+         * animatePersistence()}, or
+         * {@link #animateDisappearance(ViewHolder, ItemHolderInfo, ItemHolderInfo)
+         * animateDisappearance()}, there should be a matching
+         * {@link #dispatchAnimationStarted(ViewHolder)} call by the subclass.
+         * <p>
+         * For {@link #animateChange(ViewHolder, ViewHolder, ItemHolderInfo, ItemHolderInfo)
+         * animateChange()}, sublcass should call this method for both the <code>oldHolder</code>
+         * and <code>newHolder</code> (if they are not the same instance).
+         * <p>
+         * If your ItemAnimator decides not to animate a ViewHolder, it should call
+         * {@link #dispatchAnimationFinished(ViewHolder)} <b>without</b> calling
+         * {@link #dispatchAnimationStarted(ViewHolder)}.
+         *
+         * @param viewHolder The ViewHolder whose animation is starting.
+         * @see #onAnimationStarted(ViewHolder)
+         */
+        public final void dispatchAnimationStarted(ViewHolder viewHolder) {
+            onAnimationStarted(viewHolder);
+        }
+
+        /**
+         * Called when a new animation is started on the given ViewHolder.
+         *
+         * @param viewHolder The ViewHolder which started animating. Note that the ViewHolder
+         *                   might already be animating and this might be another animation.
+         * @see #dispatchAnimationStarted(ViewHolder)
+         */
+        public void onAnimationStarted(ViewHolder viewHolder) {
+
+        }
 
         /**
          * Like {@link #isRunning()}, this method returns whether there are any item
@@ -10089,15 +10101,23 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
         }
 
         /**
-         * The interface to be implemented by listeners to animation events from this
-         * ItemAnimator. This is used internally and is not intended for developers to
-         * create directly.
+         * When an item is changed, ItemAnimator can decide whether it wants to re-use
+         * the same ViewHolder for animations or RecyclerView should create a copy of the
+         * item and ItemAnimator will use both to run the animation (e.g. cross-fade).
+         * <p>
+         * Note that this method will only be called if the {@link ViewHolder} still has the same
+         * type ({@link Adapter#getItemViewType(int)}). Otherwise, ItemAnimator will always receive
+         * both {@link ViewHolder}s in the
+         * {@link #animateChange(ViewHolder, ViewHolder, ItemHolderInfo, ItemHolderInfo)} method.
+         *
+         * @param viewHolder The ViewHolder which represents the changed item's old content.
+         *
+         * @return True if RecyclerView should just rebind to the same ViewHolder or false if
+         *         RecyclerView should create a new ViewHolder and pass this ViewHolder to the
+         *         ItemAnimator to animate. Default implementation returns <code>true</code>.
          */
-        interface ItemAnimatorListener {
-            void onRemoveFinished(ViewHolder item);
-            void onAddFinished(ViewHolder item);
-            void onMoveFinished(ViewHolder item);
-            void onChangeFinished(ViewHolder item);
+        public boolean canReuseUpdatedViewHolder(ViewHolder viewHolder) {
+            return true;
         }
 
         /**
@@ -10113,6 +10133,28 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
         }
 
         /**
+         * Returns a new {@link ItemHolderInfo} which will be used to store information about the
+         * ViewHolder. This information will later be passed into <code>animate**</code> methods.
+         * <p>
+         * You can override this method if you want to extend {@link ItemHolderInfo} and provide
+         * your own instances.
+         *
+         * @return A new {@link ItemHolderInfo}.
+         */
+        public ItemHolderInfo obtainHolderInfo() {
+            return new ItemHolderInfo();
+        }
+
+        /**
+         * The interface to be implemented by listeners to animation events from this
+         * ItemAnimator. This is used internally and is not intended for developers to
+         * create directly.
+         */
+        interface ItemAnimatorListener {
+            void onAnimationFinished(ViewHolder item);
+        }
+
+        /**
          * This interface is used to inform listeners when all pending or running animations
          * in an ItemAnimator are finished. This can be used, for example, to delay an action
          * in a data set until currently-running animations are complete.
@@ -10124,105 +10166,79 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
         }
 
         /**
-         * Called when a remove animation is being started on the given ViewHolder.
-         * The default implementation does nothing. Subclasses may wish to override
-         * this method to handle any ViewHolder-specific operations linked to animation
-         * lifecycles.
-         *
-         * @param item The ViewHolder being animated.
+         * A simple data structure that holds information about an item's bounds.
+         * This information is used in calculating item animations. Default implementation of
+         * {@link #recordPreLayoutInformation(RecyclerView.State, ViewHolder, int, List)} and
+         * {@link #recordPostLayoutInformation(RecyclerView.State, ViewHolder)} returns this data
+         * structure. You can extend this class if you would like to keep more information about
+         * the Views.
+         * <p>
+         * If you want to provide your own implementation butstill use `super` methods to record
+         * basic information, you can override {@link #obtainHolderInfo()} to provide your own
+         * instances.
          */
-        public void onRemoveStarting(ViewHolder item) {}
+        public static class ItemHolderInfo {
 
-        /**
-         * Called when a remove animation has ended on the given ViewHolder.
-         * The default implementation does nothing. Subclasses may wish to override
-         * this method to handle any ViewHolder-specific operations linked to animation
-         * lifecycles.
-         *
-         * @param item The ViewHolder being animated.
-         */
-        public void onRemoveFinished(ViewHolder item) {}
+            /**
+             * The left edge of the View (excluding decorations)
+             */
+            public int left;
 
-        /**
-         * Called when an add animation is being started on the given ViewHolder.
-         * The default implementation does nothing. Subclasses may wish to override
-         * this method to handle any ViewHolder-specific operations linked to animation
-         * lifecycles.
-         *
-         * @param item The ViewHolder being animated.
-         */
-        public void onAddStarting(ViewHolder item) {}
+            /**
+             * The top edge of the View (excluding decorations)
+             */
+            public int top;
 
-        /**
-         * Called when an add animation has ended on the given ViewHolder.
-         * The default implementation does nothing. Subclasses may wish to override
-         * this method to handle any ViewHolder-specific operations linked to animation
-         * lifecycles.
-         *
-         * @param item The ViewHolder being animated.
-         */
-        public void onAddFinished(ViewHolder item) {}
+            /**
+             * The right edge of the View (excluding decorations)
+             */
+            public int right;
 
-        /**
-         * Called when a move animation is being started on the given ViewHolder.
-         * The default implementation does nothing. Subclasses may wish to override
-         * this method to handle any ViewHolder-specific operations linked to animation
-         * lifecycles.
-         *
-         * @param item The ViewHolder being animated.
-         */
-        public void onMoveStarting(ViewHolder item) {}
+            /**
+             * The bottom edge of the View (excluding decorations)
+             */
+            public int bottom;
 
-        /**
-         * Called when a move animation has ended on the given ViewHolder.
-         * The default implementation does nothing. Subclasses may wish to override
-         * this method to handle any ViewHolder-specific operations linked to animation
-         * lifecycles.
-         *
-         * @param item The ViewHolder being animated.
-         */
-        public void onMoveFinished(ViewHolder item) {}
+            /**
+             * The change flags that were passed to
+             * {@link #recordPreLayoutInformation(RecyclerView.State, ViewHolder, int, List)}.
+             */
+            @AdapterChanges
+            public int changeFlags;
 
-        /**
-         * Called when a change animation is being started on the given ViewHolder.
-         * The default implementation does nothing. Subclasses may wish to override
-         * this method to handle any ViewHolder-specific operations linked to animation
-         * lifecycles.
-         *
-         * @param item The ViewHolder being animated.
-         * @param oldItem true if this is the old item that was changed, false if
-         * it is the new item that replaced the old item.
-         */
-        public void onChangeStarting(ViewHolder item, boolean oldItem) {}
+            public ItemHolderInfo() {
+            }
 
-        /**
-         * Called when a change animation has ended on the given ViewHolder.
-         * The default implementation does nothing. Subclasses may wish to override
-         * this method to handle any ViewHolder-specific operations linked to animation
-         * lifecycles.
-         *
-         * @param item The ViewHolder being animated.
-         * @param oldItem true if this is the old item that was changed, false if
-         * it is the new item that replaced the old item.
-         */
-        public void onChangeFinished(ViewHolder item, boolean oldItem) {}
+            /**
+             * Sets the {@link #left}, {@link #top}, {@link #right} and {@link #bottom} values from
+             * the given ViewHolder. Clears all {@link #changeFlags}.
+             *
+             * @param holder The ViewHolder whose bounds should be copied.
+             * @return This {@link ItemHolderInfo}
+             */
+            public ItemHolderInfo setFrom(RecyclerView.ViewHolder holder) {
+                return setFrom(holder, 0);
+            }
 
-    }
-
-    /**
-     * Internal data structure that holds information about an item's bounds.
-     * This information is used in calculating item animations.
-     */
-    private static class ItemHolderInfo {
-        ViewHolder holder;
-        int left, top, right, bottom;
-
-        ItemHolderInfo(ViewHolder holder, int left, int top, int right, int bottom) {
-            this.holder = holder;
-            this.left = left;
-            this.top = top;
-            this.right = right;
-            this.bottom = bottom;
+            /**
+             * Sets the {@link #left}, {@link #top}, {@link #right} and {@link #bottom} values from
+             * the given ViewHolder and sets the {@link #changeFlags} to the given flags parameter.
+             *
+             * @param holder The ViewHolder whose bounds should be copied.
+             * @param flags  The adapter change flags that were passed into
+             *               {@link #recordPreLayoutInformation(RecyclerView.State, ViewHolder, int,
+             *               List)}.
+             * @return This {@link ItemHolderInfo}
+             */
+            public ItemHolderInfo setFrom(RecyclerView.ViewHolder holder,
+                    @AdapterChanges int flags) {
+                final View view = holder.itemView;
+                this.left = view.getLeft();
+                this.top = view.getTop();
+                this.right = view.getRight();
+                this.bottom = view.getBottom();
+                return this;
+            }
         }
     }
 
@@ -10243,7 +10259,7 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
      * order of two views will not have any effect if their elevation values are different since
      * elevation overrides the result of this callback.
      */
-    public static interface ChildDrawingOrderCallback {
+    public interface ChildDrawingOrderCallback {
         /**
          * Returns the index of the child to draw for this iteration. Override this
          * if you want to change the drawing order of children. By default, it
@@ -10254,6 +10270,6 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
          *
          * @see RecyclerView#setChildDrawingOrderCallback(RecyclerView.ChildDrawingOrderCallback)
          */
-        public int onGetChildDrawingOrder(int childCount, int i);
+        int onGetChildDrawingOrder(int childCount, int i);
     }
 }

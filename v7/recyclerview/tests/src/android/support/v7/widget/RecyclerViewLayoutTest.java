@@ -28,7 +28,6 @@ import android.graphics.PointF;
 import android.graphics.Rect;
 import android.os.SystemClock;
 import android.support.v4.view.ViewCompat;
-import android.support.v7.widget.RecyclerView;
 import android.test.TouchUtils;
 import android.util.Log;
 import android.view.Gravity;
@@ -62,7 +61,7 @@ public class RecyclerViewLayoutTest extends BaseRecyclerViewInstrumentationTest 
     private static final int FLAG_VERTICAL = 1 << 1;
     private static final int FLAG_FLING = 1 << 2;
 
-    private static final boolean DEBUG = true;
+    private static final boolean DEBUG = false;
 
     private static final String TAG = "RecyclerViewLayoutTest";
 
@@ -174,9 +173,9 @@ public class RecyclerViewLayoutTest extends BaseRecyclerViewInstrumentationTest 
     }
 
     @Test
-    public void testFocusSearchFailFrozen() throws Throwable {
+    public void  testFocusSearchFailFrozen() throws Throwable {
         RecyclerView recyclerView = new RecyclerView(getActivity());
-
+        final CountDownLatch focusLatch = new CountDownLatch(1);
         final AtomicInteger focusSearchCalled = new AtomicInteger(0);
         TestLayoutManager tlm = new TestLayoutManager() {
             @Override
@@ -196,9 +195,10 @@ public class RecyclerViewLayoutTest extends BaseRecyclerViewInstrumentationTest 
             }
 
             @Override
-            public View onFocusSearchFailed(View focused, int direction, RecyclerView.Recycler recycler,
-                    RecyclerView.State state) {
+            public View onFocusSearchFailed(View focused, int direction,
+                    RecyclerView.Recycler recycler, RecyclerView.State state) {
                 focusSearchCalled.addAndGet(1);
+                focusLatch.countDown();
                 return null;
             }
         };
@@ -217,14 +217,13 @@ public class RecyclerViewLayoutTest extends BaseRecyclerViewInstrumentationTest 
             }
         });
         assertTrue(c.hasFocus());
-
         freezeLayout(true);
         sendKeys(KeyEvent.KEYCODE_DPAD_DOWN);
         assertEquals("onFocusSearchFailed should not be called when layout is frozen",
                 0, focusSearchCalled.get());
-
         freezeLayout(false);
         sendKeys(KeyEvent.KEYCODE_DPAD_DOWN);
+        assertTrue(focusLatch.await(2, TimeUnit.SECONDS));
         assertEquals(1, focusSearchCalled.get());
     }
 
@@ -1214,6 +1213,7 @@ public class RecyclerViewLayoutTest extends BaseRecyclerViewInstrumentationTest 
         TestLayoutManager lm = new TestLayoutManager() {
             @Override
             public void onLayoutChildren(RecyclerView.Recycler recycler, RecyclerView.State state) {
+                ViewInfoStore infoStore = mRecyclerView.mViewInfoStore;
                 if (test.get()) {
                     try {
                         detachAndScrapAttachedViews(recycler);
@@ -1225,25 +1225,26 @@ public class RecyclerViewLayoutTest extends BaseRecyclerViewInstrumentationTest 
                                         recycler);
                             }
                         }
-                        if (state.mOldChangedHolders != null) {
-                            for (int i = state.mOldChangedHolders.size() - 1; i >= 0; i--) {
+                        if (infoStore.mOldChangedHolders != null) {
+                            for (int i = infoStore.mOldChangedHolders.size() - 1; i >= 0; i--) {
                                 if (useRecycler) {
                                     recycler.recycleView(
-                                            state.mOldChangedHolders.valueAt(i).itemView);
+                                            infoStore.mOldChangedHolders.valueAt(i).itemView);
                                 } else {
                                     removeAndRecycleView(
-                                            state.mOldChangedHolders.valueAt(i).itemView, recycler);
+                                            infoStore.mOldChangedHolders.valueAt(i).itemView,
+                                            recycler);
                                 }
                             }
                         }
                         assertEquals("no scrap should be left over", 0, recycler.getScrapCount());
                         assertEquals("pre layout map should be empty", 0,
-                                state.mPreLayoutHolderMap.size());
+                                InfoStoreTrojan.sizeOfPreLayout(infoStore));
                         assertEquals("post layout map should be empty", 0,
-                                state.mPostLayoutHolderMap.size());
-                        if (state.mOldChangedHolders != null) {
+                                InfoStoreTrojan.sizeOfPostLayout(infoStore));
+                        if (infoStore.mOldChangedHolders != null) {
                             assertEquals("post old change map should be empty", 0,
-                                    state.mOldChangedHolders.size());
+                                    infoStore.mOldChangedHolders.size());
                         }
                     } catch (Throwable t) {
                         postExceptionToInstrumentation(t);
@@ -1258,7 +1259,7 @@ public class RecyclerViewLayoutTest extends BaseRecyclerViewInstrumentationTest 
         RecyclerView recyclerView = new RecyclerView(getActivity());
         recyclerView.setAdapter(testAdapter);
         recyclerView.setLayoutManager(lm);
-        recyclerView.getItemAnimator().setSupportsChangeAnimations(true);
+        ((SimpleItemAnimator)recyclerView.getItemAnimator()).setSupportsChangeAnimations(true);
         lm.expectLayouts(1);
         setRecyclerView(recyclerView);
         lm.waitForLayout(2);

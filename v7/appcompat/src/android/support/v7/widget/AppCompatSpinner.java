@@ -30,10 +30,7 @@ import android.support.annotation.Nullable;
 import android.support.v4.view.TintableBackgroundView;
 import android.support.v4.view.ViewCompat;
 import android.support.v7.appcompat.R;
-import android.support.v7.internal.view.ContextThemeWrapper;
-import android.support.v7.internal.widget.TintManager;
-import android.support.v7.internal.widget.TintTypedArray;
-import android.support.v7.internal.widget.ViewUtils;
+import android.support.v7.view.ContextThemeWrapper;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.MotionEvent;
@@ -41,6 +38,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
 import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.ListAdapter;
 import android.widget.ListView;
 import android.widget.PopupWindow;
@@ -77,7 +75,7 @@ public class AppCompatSpinner extends Spinner implements TintableBackgroundView 
     private static final int MODE_DROPDOWN = 1;
     private static final int MODE_THEME = -1;
 
-    private TintManager mTintManager;
+    private AppCompatDrawableManager mDrawableManager;
 
     private AppCompatBackgroundHelper mBackgroundTintHelper;
 
@@ -199,8 +197,8 @@ public class AppCompatSpinner extends Spinner implements TintableBackgroundView 
         TintTypedArray a = TintTypedArray.obtainStyledAttributes(context, attrs,
                 R.styleable.Spinner, defStyleAttr, 0);
 
-        mTintManager = a.getTintManager();
-        mBackgroundTintHelper = new AppCompatBackgroundHelper(this, mTintManager);
+        mDrawableManager = AppCompatDrawableManager.get();
+        mBackgroundTintHelper = new AppCompatBackgroundHelper(this, mDrawableManager);
 
         if (popupTheme != null) {
             mPopupContext = new ContextThemeWrapper(context, popupTheme);
@@ -267,6 +265,15 @@ public class AppCompatSpinner extends Spinner implements TintableBackgroundView 
                 };
             }
         }
+
+        final CharSequence[] entries = a.getTextArray(R.styleable.Spinner_android_entries);
+        if (entries != null) {
+            final ArrayAdapter<CharSequence> adapter = new ArrayAdapter<>(context,
+                    R.layout.support_simple_spinner_dropdown_item, entries);
+            adapter.setDropDownViewResource(R.layout.support_simple_spinner_dropdown_item);
+            setAdapter(adapter);
+        }
+
         a.recycle();
 
         mPopupSet = true;

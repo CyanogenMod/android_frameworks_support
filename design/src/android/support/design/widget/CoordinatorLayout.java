@@ -31,6 +31,8 @@ import android.os.Parcelable;
 import android.os.SystemClock;
 import android.support.design.R;
 import android.support.v4.content.ContextCompat;
+import android.support.v4.os.ParcelableCompat;
+import android.support.v4.os.ParcelableCompatCreatorCallbacks;
 import android.support.v4.view.GravityCompat;
 import android.support.v4.view.MotionEventCompat;
 import android.support.v4.view.NestedScrollingParent;
@@ -85,7 +87,12 @@ import java.util.Map;
  */
 public class CoordinatorLayout extends ViewGroup implements NestedScrollingParent {
     static final String TAG = "CoordinatorLayout";
-    static final String WIDGET_PACKAGE_NAME = CoordinatorLayout.class.getPackage().getName();
+    static final String WIDGET_PACKAGE_NAME;
+
+    static {
+        final Package pkg = CoordinatorLayout.class.getPackage();
+        WIDGET_PACKAGE_NAME = pkg != null ? pkg.getName() : null;
+    }
 
     private static final int TYPE_ON_INTERCEPT = 0;
     private static final int TYPE_ON_TOUCH = 1;
@@ -167,6 +174,8 @@ public class CoordinatorLayout extends ViewGroup implements NestedScrollingParen
 
     public CoordinatorLayout(Context context, AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
+
+        ThemeUtils.checkAppCompatTheme(context);
 
         final TypedArray a = context.obtainStyledAttributes(attrs, R.styleable.CoordinatorLayout,
                 defStyleAttr, R.style.Widget_Design_CoordinatorLayout);
@@ -499,8 +508,10 @@ public class CoordinatorLayout extends ViewGroup implements NestedScrollingParen
             // Fully qualified package name.
             fullName = name;
         } else {
-            // Assume stock behavior in this package.
-            fullName = WIDGET_PACKAGE_NAME + '.' + name;
+            // Assume stock behavior in this package (if we have one)
+            fullName = !TextUtils.isEmpty(WIDGET_PACKAGE_NAME)
+                    ? (WIDGET_PACKAGE_NAME + '.' + name)
+                    : name;
         }
 
         try {
@@ -546,26 +557,18 @@ public class CoordinatorLayout extends ViewGroup implements NestedScrollingParen
     }
 
     private void prepareChildren() {
-        final int childCount = getChildCount();
-
-        boolean resortRequired = mDependencySortedChildren.size() != childCount;
-
-        for (int i = 0; i < childCount; i++) {
+        mDependencySortedChildren.clear();
+        for (int i = 0, count = getChildCount(); i < count; i++) {
             final View child = getChildAt(i);
-            final LayoutParams lp = getResolvedLayoutParams(child);
-            if (!resortRequired && lp.isDirty(this, child)) {
-                resortRequired = true;
-            }
-            lp.findAnchorView(this, child);
-        }
 
-        if (resortRequired) {
-            mDependencySortedChildren.clear();
-            for (int i = 0; i < childCount; i++) {
-                mDependencySortedChildren.add(getChildAt(i));
-            }
-            Collections.sort(mDependencySortedChildren, mLayoutDependencyComparator);
+            final LayoutParams lp = getResolvedLayoutParams(child);
+            lp.findAnchorView(this, child);
+
+            mDependencySortedChildren.add(child);
         }
+        // We need to use a selection sort here to make sure that every item is compared
+        // against each other
+        selectionSort(mDependencySortedChildren, mLayoutDependencyComparator);
     }
 
     /**
@@ -1143,15 +1146,23 @@ public class CoordinatorLayout extends ViewGroup implements NestedScrollingParen
         }
     }
 
-    void dispatchDependentViewRemoved(View removedChild) {
-        final int childCount = getChildCount();
+    void dispatchDependentViewRemoved(View view) {
+        final int childCount = mDependencySortedChildren.size();
+        boolean viewSeen = false;
         for (int i = 0; i < childCount; i++) {
-            final View child = getChildAt(i);
-            final LayoutParams lp = (LayoutParams) child.getLayoutParams();
-            final Behavior b = lp.getBehavior();
-
-            if (b != null && b.layoutDependsOn(this, child, removedChild)) {
-                b.onDependentViewRemoved(this, child, removedChild);
+            final View child = mDependencySortedChildren.get(i);
+            if (child == view) {
+                // We've seen our view, which means that any Views after this could be dependent
+                viewSeen = true;
+                continue;
+            }
+            if (viewSeen) {
+                CoordinatorLayout.LayoutParams lp = (CoordinatorLayout.LayoutParams)
+                        child.getLayoutParams();
+                CoordinatorLayout.Behavior b = lp.getBehavior();
+                if (b != null && lp.dependsOn(this, child, view)) {
+                    b.onDependentViewRemoved(this, child, view);
+                }
             }
         }
     }
@@ -2246,10 +2257,6 @@ public class CoordinatorLayout extends ViewGroup implements NestedScrollingParen
         /**
          * Get the id of this view's anchor.
          *
-         * <p>The view with this id must be a descendant of the CoordinatorLayout containing
-         * the child view this LayoutParams belongs to. It may not be the child view with
-         * this LayoutParams or a descendant of it.</p>
-         *
          * @return A {@link View#getId() view id} or {@link View#NO_ID} if there is no anchor
          */
         public int getAnchorId() {
@@ -2257,7 +2264,7 @@ public class CoordinatorLayout extends ViewGroup implements NestedScrollingParen
         }
 
         /**
-         * Get the id of this view's anchor.
+         * Set the id of this view's anchor.
          *
          * <p>The view with this id must be a descendant of the CoordinatorLayout containing
          * the child view this LayoutParams belongs to. It may not be the child view with
@@ -2454,9 +2461,18 @@ public class CoordinatorLayout extends ViewGroup implements NestedScrollingParen
          * Determine the anchor view for the child view this LayoutParams is assigned to.
          * Assumes mAnchorId is valid.
          */
-        private void resolveAnchorView(View forChild, CoordinatorLayout parent) {
+        private void resolveAnchorView(final View forChild, final CoordinatorLayout parent) {
             mAnchorView = parent.findViewById(mAnchorId);
             if (mAnchorView != null) {
+                if (mAnchorView == parent) {
+                    if (parent.isInEditMode()) {
+                        mAnchorView = mAnchorDirectChild = null;
+                        return;
+                    }
+                    throw new IllegalStateException(
+                            "View can not be anchored to the the parent CoordinatorLayout");
+                }
+
                 View directChild = mAnchorView;
                 for (ViewParent p = mAnchorView.getParent();
                         p != parent && p != null;
@@ -2586,7 +2602,7 @@ public class CoordinatorLayout extends ViewGroup implements NestedScrollingParen
     protected static class SavedState extends BaseSavedState {
         SparseArray<Parcelable> behaviorStates;
 
-        public SavedState(Parcel source) {
+        public SavedState(Parcel source, ClassLoader loader) {
             super(source);
 
             final int size = source.readInt();
@@ -2594,8 +2610,7 @@ public class CoordinatorLayout extends ViewGroup implements NestedScrollingParen
             final int[] ids = new int[size];
             source.readIntArray(ids);
 
-            final Parcelable[] states = source.readParcelableArray(
-                    CoordinatorLayout.class.getClassLoader());
+            final Parcelable[] states = source.readParcelableArray(loader);
 
             behaviorStates = new SparseArray<>(size);
             for (int i = 0; i < size; i++) {
@@ -2626,17 +2641,50 @@ public class CoordinatorLayout extends ViewGroup implements NestedScrollingParen
 
         }
 
-        public static final Parcelable.Creator<SavedState> CREATOR =
-                new Parcelable.Creator<SavedState>() {
-                    @Override
-                    public SavedState createFromParcel(Parcel source) {
-                        return new SavedState(source);
-                    }
+        public static final Parcelable.Creator<SavedState> CREATOR
+                = ParcelableCompat.newCreator(new ParcelableCompatCreatorCallbacks<SavedState>() {
+            @Override
+            public SavedState createFromParcel(Parcel in, ClassLoader loader) {
+                return new SavedState(in, loader);
+            }
 
-                    @Override
-                    public SavedState[] newArray(int size) {
-                        return new SavedState[size];
-                    }
-                };
+            @Override
+            public SavedState[] newArray(int size) {
+                return new SavedState[size];
+            }
+        });
+    }
+
+    private static void selectionSort(final List<View> list, final Comparator<View> comparator) {
+        if (list == null || list.size() < 2) {
+            return;
+        }
+
+        final View[] array = new View[list.size()];
+        list.toArray(array);
+        final int count = array.length;
+
+        for (int i = 0; i < count; i++) {
+            int min = i;
+
+            for (int j = i + 1; j < count; j++) {
+                if (comparator.compare(array[j], array[min]) < 0) {
+                    min = j;
+                }
+            }
+
+            if (i != min) {
+                // We have a different min so swap the items
+                final View minItem = array[min];
+                array[min] = array[i];
+                array[i] = minItem;
+            }
+        }
+
+        // Finally add the array back into the collection
+        list.clear();
+        for (int i = 0; i < count; i++) {
+            list.add(array[i]);
+        }
     }
 }

@@ -18,15 +18,13 @@ package android.support.v7.app;
 
 import android.app.Activity;
 import android.content.Context;
-import android.content.res.TypedArray;
 import android.graphics.drawable.Drawable;
-import android.os.Bundle;
 import android.support.v7.appcompat.R;
-import android.support.v7.internal.view.SupportMenuInflater;
-import android.support.v7.internal.view.WindowCallbackWrapper;
-import android.support.v7.internal.view.menu.MenuBuilder;
-import android.support.v7.internal.widget.TintTypedArray;
 import android.support.v7.view.ActionMode;
+import android.support.v7.view.SupportMenuInflater;
+import android.support.v7.view.WindowCallbackWrapper;
+import android.support.v7.view.menu.MenuBuilder;
+import android.support.v7.widget.TintTypedArray;
 import android.view.KeyEvent;
 import android.view.Menu;
 import android.view.MenuInflater;
@@ -54,6 +52,8 @@ abstract class AppCompatDelegateImplBase extends AppCompatDelegate {
     boolean mIsFloating;
     // true if this activity has no title
     boolean mWindowNoTitle;
+    // true if the theme has been read
+    boolean mThemeRead;
 
     private CharSequence mTitle;
 
@@ -276,8 +276,9 @@ abstract class AppCompatDelegateImplBase extends AppCompatDelegate {
 
         @Override
         public boolean onMenuOpened(int featureId, Menu menu) {
-            return super.onMenuOpened(featureId, menu)
-                    || AppCompatDelegateImplBase.this.onMenuOpened(featureId, menu);
+            super.onMenuOpened(featureId, menu);
+            AppCompatDelegateImplBase.this.onMenuOpened(featureId, menu);
+            return true;
         }
 
         @Override

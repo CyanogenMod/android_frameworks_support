@@ -87,14 +87,8 @@
     <style name="Widget.Leanback" parent="Widget.LeanbackBase" />
 
     <style name="Widget.Leanback.BaseCardViewStyle">
-        <item name="android:foreground">@drawable/lb_card_foreground</item>
-    </style>
-
-    <style name="Widget.Leanback.ImageCardViewStyle" parent="Widget.Leanback.BaseCardViewStyle">
-        <item name="cardType">infoUnder</item>
-        <item name="infoVisibility">activated</item>
-        <item name="android:background">@color/lb_basic_card_bg_color</item>
-        <item name="infoAreaBackground">@color/lb_basic_card_info_bg_color</item>
+        <item name="cardForeground">@drawable/lb_card_foreground</item>
+        <item name="cardBackground">@color/lb_basic_card_bg_color</item>
     </style>
 
     <style name="Widget.Leanback.TitleView" >
@@ -102,6 +96,77 @@
         <item name="android:paddingBottom">?attr/browsePaddingTop</item>
         <item name="android:paddingStart">?attr/browsePaddingStart</item>
         <item name="android:paddingEnd">?attr/browsePaddingEnd</item>
+    </style>
+
+    <style name="Widget.Leanback.ImageCardViewStyle" parent="Widget.Leanback.BaseCardViewStyle">
+        <item name="cardType">infoUnder</item>
+        <item name="infoVisibility">activated</item>
+        <!-- In order to keep backward compatibility we have to create an icon on right. -->
+        <item name="lbImageCardViewType">Title|Content|IconOnRight</item>
+        <item name="lbImageCardViewImageStyle">@style/Widget.Leanback.ImageCardView.ImageStyle</item>
+        <item name="lbImageCardViewTitleStyle">@style/Widget.Leanback.ImageCardView.TitleStyle</item>
+        <item name="lbImageCardViewContentStyle">@style/Widget.Leanback.ImageCardView.ContentStyle</item>
+        <item name="lbImageCardViewBadgeStyle">@style/Widget.Leanback.ImageCardView.BadgeStyle</item>
+        <item name="lbImageCardViewInfoAreaStyle">@style/Widget.Leanback.ImageCardView.InfoAreaStyle</item>
+        <!-- Deprecated. Use 'Widget.Leanback.ImageCardView.InfoAreaStyle' instead. -->
+        <item name="infoAreaBackground">@null</item>
+    </style>
+
+    <style name="Widget.Leanback.ImageCardView" />
+
+    <style name="Widget.Leanback.ImageCardView.ImageStyle">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:adjustViewBounds">true</item>
+        <item name="android:contentDescription">@null</item>
+        <item name="android:scaleType">centerCrop</item>
+        <item name="layout_viewType">main</item>
+    </style>
+
+    <style name="Widget.Leanback.ImageCardView.InfoAreaStyle">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_centerHorizontal">true</item>
+        <item name="layout_viewType">info</item>
+        <item name="android:paddingBottom">@dimen/lb_basic_card_info_padding_bottom</item>
+        <item name="android:paddingEnd">@dimen/lb_basic_card_info_padding_horizontal</item>
+        <item name="android:paddingStart">@dimen/lb_basic_card_info_padding_horizontal</item>
+        <item name="android:paddingTop">@dimen/lb_basic_card_info_padding_top</item>
+        <item name="android:background">@color/lb_basic_card_info_bg_color</item>
+    </style>
+	
+    <style name="Widget.Leanback.ImageCardView.TitleStyle">
+        <item name="android:id">@id/title_text</item>
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:layout_marginBottom">@dimen/lb_basic_card_info_text_margin</item>
+        <item name="android:fontFamily">sans-serif-condensed</item>
+        <item name="android:textColor">@color/lb_basic_card_title_text_color</item>
+        <item name="android:textSize">@dimen/lb_basic_card_title_text_size</item>
+        <item name="android:ellipsize">end</item>
+    </style>
+
+    <style name="Widget.Leanback.ImageCardView.ContentStyle">
+        <item name="android:id">@id/content_text</item>
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_alignParentStart">true</item>
+        <item name="android:layout_below">@+id/title_text</item>
+        <item name="android:layout_toStartOf">@+id/extra_badge</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:fontFamily">sans-serif-condensed</item>
+        <item name="android:textColor">@color/lb_basic_card_content_text_color</item>
+        <item name="android:textSize">@dimen/lb_basic_card_content_text_size</item>
+        <item name="android:ellipsize">none</item>
+    </style>
+
+    <style name="Widget.Leanback.ImageCardView.BadgeStyle">
+        <item name="android:id">@id/extra_badge</item>
+        <item name="android:layout_width">@dimen/lb_basic_card_info_badge_size</item>
+        <item name="android:layout_height">@dimen/lb_basic_card_info_badge_size</item>
+        <item name="android:contentDescription">@null</item>
+        <item name="android:scaleType">fitCenter</item>
     </style>
 
     <style name="Widget.Leanback.Title" />
@@ -130,6 +195,7 @@
     <style name="Widget.Leanback.GridItems" />
 
     <style name="Widget.Leanback.Headers.VerticalGridView" >
+        <item name="android:background">?attr/defaultBrandColor</item>
         <item name="android:paddingStart">?attr/browsePaddingStart</item>
         <item name="focusOutFront">true</item>
         <item name="focusOutEnd">true</item>
@@ -357,21 +423,11 @@
         <item name="android:scaleType">fitCenter</item>
     </style>
 
-    <!-- Style for the container view in a GuidedActionsStylist's default layout. -->
-    <style name="Widget.Leanback.GuidedActionsContainerStyle">
-        <item name="android:layout_width">@dimen/lb_guidedactions_section_width</item>
-        <item name="android:layout_height">match_parent</item>
-        <item name="android:layout_alignParentEnd">true</item>
-        <item name="android:background">@color/lb_guidedactions_background</item>
-        <item name="android:elevation">@dimen/lb_guidedactions_elevation</item>
-    </style>
-
     <!-- Style for the selector view in a GuidedActionsStylist's default layout. -->
     <style name="Widget.Leanback.GuidedActionsSelectorStyle">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">@dimen/lb_guidedactions_selector_min_height</item>
         <item name="android:layout_centerVertical">true</item>
-        <item name="android:alpha">0</item>
         <item name="android:background">@color/lb_guidedactions_selector_color</item>
     </style>
 
@@ -401,9 +457,8 @@
         <item name="android:layout_height">@dimen/lb_guidedactions_item_checkmark_diameter</item>
         <item name="android:layout_gravity">center</item>
         <item name="android:layout_marginEnd">@dimen/lb_guidedactions_item_delimiter_padding</item>
-        <item name="android:scaleType">center</item>
-        <item name="android:src">@drawable/lb_guidedactions_item_checkmark</item>
-        <item name="android:visibility">invisible</item>
+        <item name="android:scaleType">centerInside</item>
+        <item name="android:visibility">gone</item>
     </style>
 
     <!-- Style for an action's icon in a GuidedActionsStylist's default item layout. -->
@@ -418,7 +473,7 @@
 
     <!-- Style for an action's text content in a GuidedActionsStylist's default item layout. -->
     <style name="Widget.Leanback.GuidedActionItemContentStyle">
-        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>
         <item name="android:layout_gravity">start|center_vertical</item>
         <item name="android:layout_weight">1</item>
@@ -430,11 +485,12 @@
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>
         <item name="android:alpha">@string/lb_guidedactions_item_unselected_text_alpha</item>
-        <item name="android:ellipsize">marquee</item>
+        <item name="android:ellipsize">end</item>
         <item name="android:fontFamily">sans-serif-condensed</item>
         <item name="android:maxLines">@integer/lb_guidedactions_item_title_min_lines</item>
         <item name="android:textColor">@color/lb_guidedactions_item_unselected_text_color</item>
         <item name="android:textSize">@dimen/lb_guidedactions_item_title_font_size</item>
+        <item name="android:background">@null</item>
     </style>
 
     <!-- Style for an action's description in a GuidedActionsStylist's default item layout. -->
@@ -442,12 +498,13 @@
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>
         <item name="android:alpha">@string/lb_guidedactions_item_unselected_description_text_alpha</item>
-        <item name="android:ellipsize">marquee</item>
+        <item name="android:ellipsize">end</item>
         <item name="android:fontFamily">sans-serif-condensed</item>
         <item name="android:maxLines">@integer/lb_guidedactions_item_description_min_lines</item>
         <item name="android:textColor">@color/lb_guidedactions_item_unselected_text_color</item>
         <item name="android:textSize">@dimen/lb_guidedactions_item_description_font_size</item>
         <item name="android:visibility">gone</item>
+        <item name="android:background">@null</item>
     </style>
 
     <!-- Style for an action's chevron in a GuidedActionsStylist's default item layout. -->

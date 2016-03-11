@@ -101,6 +101,7 @@ public class PercentLayoutHelper {
                     + View.MeasureSpec.toString(widthMeasureSpec) + " heightMeasureSpec: "
                     + View.MeasureSpec.toString(heightMeasureSpec));
         }
+
         int widthHint = View.MeasureSpec.getSize(widthMeasureSpec);
         int heightHint = View.MeasureSpec.getSize(heightMeasureSpec);
         for (int i = 0, N = mHost.getChildCount(); i < N; i++) {
@@ -217,6 +218,16 @@ public class PercentLayoutHelper {
             info = info != null ? info : new PercentLayoutInfo();
             info.endMarginPercent = value;
         }
+
+        value = array.getFraction(R.styleable.PercentLayout_Layout_layout_aspectRatio, 1, 1, -1f);
+        if (value != -1f) {
+            if (Log.isLoggable(TAG, Log.VERBOSE)) {
+                Log.v(TAG, "aspect ratio: " + value);
+            }
+            info = info != null ? info : new PercentLayoutInfo();
+            info.aspectRatio = value;
+        }
+
         array.recycle();
         if (Log.isLoggable(TAG, Log.DEBUG)) {
             Log.d(TAG, "constructed: " + info);
@@ -329,6 +340,8 @@ public class PercentLayoutHelper {
 
         public float endMarginPercent;
 
+        public float aspectRatio;
+
         /* package */ final ViewGroup.MarginLayoutParams mPreservedParams;
 
         public PercentLayoutInfo() {
@@ -352,12 +365,30 @@ public class PercentLayoutHelper {
             mPreservedParams.width = params.width;
             mPreservedParams.height = params.height;
 
+            // We assume that width/height set to 0 means that value was unset. This might not
+            // necessarily be true, as the user might explicitly set it to 0. However, we use this
+            // information only for the aspect ratio. If the user set the aspect ratio attribute,
+            // it means they accept or soon discover that it will be disregarded.
+            final boolean widthNotSet = params.width == 0 && widthPercent < 0;
+            final boolean heightNotSet = params.height == 0 && heightPercent < 0;
+
             if (widthPercent >= 0) {
                 params.width = (int) (widthHint * widthPercent);
             }
+
             if (heightPercent >= 0) {
                 params.height = (int) (heightHint * heightPercent);
             }
+
+            if (aspectRatio >= 0) {
+                if (widthNotSet) {
+                    params.width = (int) (params.height * aspectRatio);
+                }
+                if (heightNotSet) {
+                    params.height = (int) (params.width / aspectRatio);
+                }
+            }
+
             if (Log.isLoggable(TAG, Log.DEBUG)) {
                 Log.d(TAG, "after fillLayoutParams: (" + params.width + ", " + params.height + ")");
             }

@@ -16,11 +16,9 @@
 
 package android.support.v7.widget;
 
-import android.content.Context;
-import android.graphics.Canvas;
 import android.graphics.Rect;
+import android.os.Debug;
 import android.support.v4.view.ViewCompat;
-import android.util.AttributeSet;
 import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
@@ -31,65 +29,315 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class RecyclerViewAnimationsTest extends BaseRecyclerViewInstrumentationTest {
+/**
+ * Tests for {@link SimpleItemAnimator} API.
+ */
+public class RecyclerViewAnimationsTest extends BaseRecyclerViewAnimationsTest {
 
-    private static final boolean DEBUG = false;
+    final List<TestViewHolder> recycledVHs = new ArrayList<>();
 
-    private static final String TAG = "RecyclerViewAnimationsTest";
+    public void testDontLayoutReusedViewWithoutPredictive() throws Throwable {
+        reuseHiddenViewTest(new ReuseTestCallback() {
+            @Override
+            public void postSetup(List<TestViewHolder> recycledList,
+                    final TestViewHolder target) throws Throwable {
+                LoggingItemAnimator itemAnimator = (LoggingItemAnimator) mRecyclerView
+                        .getItemAnimator();
+                itemAnimator.reset();
+                mLayoutManager.mOnLayoutCallbacks = new OnLayoutCallbacks() {
+                    @Override
+                    void beforePreLayout(RecyclerView.Recycler recycler,
+                            AnimationLayoutManager lm, RecyclerView.State state) {
+                        fail("pre layout is not expected");
+                    }
 
-    AnimationLayoutManager mLayoutManager;
+                    @Override
+                    void beforePostLayout(RecyclerView.Recycler recycler,
+                            AnimationLayoutManager layoutManager,
+                            RecyclerView.State state) {
+                        mLayoutItemCount = 7;
+                        View targetView = recycler
+                                .getViewForPosition(target.getAdapterPosition());
+                        assertSame(targetView, target.itemView);
+                        super.beforePostLayout(recycler, layoutManager, state);
+                    }
 
-    TestAdapter mTestAdapter;
+                    @Override
+                    void afterPostLayout(RecyclerView.Recycler recycler,
+                            AnimationLayoutManager layoutManager,
+                            RecyclerView.State state) {
+                        super.afterPostLayout(recycler, layoutManager, state);
+                        assertNull("test sanity. this view should not be re-laid out in post "
+                                + "layout", target.itemView.getParent());
+                    }
+                };
+                mLayoutManager.expectLayouts(1);
+                mLayoutManager.requestSimpleAnimationsInNextLayout();
+                requestLayoutOnUIThread(mRecyclerView);
+                mLayoutManager.waitForLayout(2);
+                checkForMainThreadException();
+                assertFalse(itemAnimator.contains(target, itemAnimator.mAnimatePersistenceList));
+                assertFalse(itemAnimator.contains(target, itemAnimator.mAnimateChangeList));
+                assertFalse(itemAnimator.contains(target, itemAnimator.mAnimateAppearanceList));
+                // This is a LayoutManager problem if it asked for the view but didn't properly
+                // lay it out. It will move to disappearance
+                assertTrue(itemAnimator.contains(target, itemAnimator.mAnimateDisappearanceList));
+                waitForAnimations(5);
+                assertTrue(recycledVHs.contains(target));
+            }
+        });
+    }
 
-    public RecyclerViewAnimationsTest() {
-        super(DEBUG);
+    public void testDontLayoutReusedViewWithPredictive() throws Throwable {
+        reuseHiddenViewTest(new ReuseTestCallback() {
+            @Override
+            public void postSetup(List<TestViewHolder> recycledList,
+                    final TestViewHolder target) throws Throwable {
+                LoggingItemAnimator itemAnimator = (LoggingItemAnimator) mRecyclerView
+                        .getItemAnimator();
+                itemAnimator.reset();
+                mLayoutManager.mOnLayoutCallbacks = new OnLayoutCallbacks() {
+                    @Override
+                    void beforePreLayout(RecyclerView.Recycler recycler,
+                            AnimationLayoutManager lm, RecyclerView.State state) {
+                        mLayoutItemCount = 9;
+                        super.beforePreLayout(recycler, lm, state);
+                    }
+
+                    @Override
+                    void beforePostLayout(RecyclerView.Recycler recycler,
+                            AnimationLayoutManager layoutManager,
+                            RecyclerView.State state) {
+                        mLayoutItemCount = 7;
+                        super.beforePostLayout(recycler, layoutManager, state);
+                    }
+
+                    @Override
+                    void afterPostLayout(RecyclerView.Recycler recycler,
+                            AnimationLayoutManager layoutManager,
+                            RecyclerView.State state) {
+                        super.afterPostLayout(recycler, layoutManager, state);
+                        assertNull("test sanity. this view should not be re-laid out in post "
+                                + "layout", target.itemView.getParent());
+                    }
+                };
+                mLayoutManager.expectLayouts(2);
+                mTestAdapter.deleteAndNotify(1, 1);
+                mLayoutManager.waitForLayout(2);
+                checkForMainThreadException();
+                assertFalse(itemAnimator.contains(target, itemAnimator.mAnimatePersistenceList));
+                assertFalse(itemAnimator.contains(target, itemAnimator.mAnimateChangeList));
+                assertFalse(itemAnimator.contains(target, itemAnimator.mAnimateAppearanceList));
+                // This is a LayoutManager problem if it asked for the view but didn't properly
+                // lay it out. It will move to disappearance.
+                assertTrue(itemAnimator.contains(target, itemAnimator.mAnimateDisappearanceList));
+                waitForAnimations(5);
+                assertTrue(recycledVHs.contains(target));
+            }
+        });
+    }
+
+    public void testReuseHiddenViewWithoutPredictive() throws Throwable {
+        reuseHiddenViewTest(new ReuseTestCallback() {
+            @Override
+            public void postSetup(List<TestViewHolder> recycledList,
+                    TestViewHolder target) throws Throwable {
+                LoggingItemAnimator itemAnimator = (LoggingItemAnimator) mRecyclerView
+                        .getItemAnimator();
+                itemAnimator.reset();
+                mLayoutManager.expectLayouts(1);
+                mLayoutManager.requestSimpleAnimationsInNextLayout();
+                mLayoutManager.mOnLayoutCallbacks.mLayoutItemCount = 9;
+                requestLayoutOnUIThread(mRecyclerView);
+                mLayoutManager.waitForLayout(2);
+                waitForAnimations(5);
+                assertTrue(itemAnimator.contains(target, itemAnimator.mAnimatePersistenceList));
+                assertFalse(itemAnimator.contains(target, itemAnimator.mAnimateChangeList));
+                assertFalse(itemAnimator.contains(target, itemAnimator.mAnimateAppearanceList));
+                assertFalse(itemAnimator.contains(target, itemAnimator.mAnimateDisappearanceList));
+                assertFalse(recycledVHs.contains(target));
+            }
+        });
+    }
+
+    public void testReuseHiddenViewWithoutAnimations() throws Throwable {
+        reuseHiddenViewTest(new ReuseTestCallback() {
+            @Override
+            public void postSetup(List<TestViewHolder> recycledList,
+                    TestViewHolder target) throws Throwable {
+                LoggingItemAnimator itemAnimator = (LoggingItemAnimator) mRecyclerView
+                        .getItemAnimator();
+                itemAnimator.reset();
+                mLayoutManager.expectLayouts(1);
+                mLayoutManager.mOnLayoutCallbacks.mLayoutItemCount = 9;
+                requestLayoutOnUIThread(mRecyclerView);
+                mLayoutManager.waitForLayout(2);
+                waitForAnimations(5);
+                assertFalse(itemAnimator.contains(target, itemAnimator.mAnimatePersistenceList));
+                assertFalse(itemAnimator.contains(target, itemAnimator.mAnimateChangeList));
+                assertFalse(itemAnimator.contains(target, itemAnimator.mAnimateAppearanceList));
+                assertFalse(itemAnimator.contains(target, itemAnimator.mAnimateDisappearanceList));
+                assertFalse(recycledVHs.contains(target));
+            }
+        });
+    }
+
+    public void testReuseHiddenViewWithPredictive() throws Throwable {
+        reuseHiddenViewTest(new ReuseTestCallback() {
+            @Override
+            public void postSetup(List<TestViewHolder> recycledList,
+                    TestViewHolder target) throws Throwable {
+                // it should move to change scrap and then show up from there
+                LoggingItemAnimator itemAnimator = (LoggingItemAnimator) mRecyclerView
+                        .getItemAnimator();
+                itemAnimator.reset();
+                mLayoutManager.expectLayouts(2);
+                mTestAdapter.deleteAndNotify(2, 1);
+                mLayoutManager.waitForLayout(2);
+                waitForAnimations(5);
+                // This LM does not layout the additional item so it does predictive wrong.
+                // We should still handle it and animate persistence for this item
+                assertTrue(itemAnimator.contains(target, itemAnimator.mAnimatePersistenceList));
+                assertFalse(itemAnimator.contains(target, itemAnimator.mAnimateChangeList));
+                assertFalse(itemAnimator.contains(target, itemAnimator.mAnimateAppearanceList));
+                assertFalse(itemAnimator.contains(target, itemAnimator.mAnimateDisappearanceList));
+                assertTrue(itemAnimator.mMoveVHs.contains(target));
+                assertFalse(recycledVHs.contains(target));
+            }
+        });
+    }
+
+    public void testReuseHiddenViewWithProperPredictive() throws Throwable {
+        reuseHiddenViewTest(new ReuseTestCallback() {
+            @Override
+            public void postSetup(List<TestViewHolder> recycledList,
+                    TestViewHolder target) throws Throwable {
+                // it should move to change scrap and then show up from there
+                LoggingItemAnimator itemAnimator = (LoggingItemAnimator) mRecyclerView
+                        .getItemAnimator();
+                itemAnimator.reset();
+                mLayoutManager.mOnLayoutCallbacks = new OnLayoutCallbacks() {
+                    @Override
+                    void beforePreLayout(RecyclerView.Recycler recycler,
+                            AnimationLayoutManager lm, RecyclerView.State state) {
+                        mLayoutItemCount = 9;
+                        super.beforePreLayout(recycler, lm, state);
+                    }
+
+                    @Override
+                    void afterPreLayout(RecyclerView.Recycler recycler,
+                            AnimationLayoutManager layoutManager,
+                            RecyclerView.State state) {
+                        mLayoutItemCount = 8;
+                        super.afterPreLayout(recycler, layoutManager, state);
+                    }
+                };
+
+                mLayoutManager.expectLayouts(2);
+                mTestAdapter.deleteAndNotify(2, 1);
+                mLayoutManager.waitForLayout(2);
+                waitForAnimations(5);
+                // This LM implements predictive animations properly by requesting target view
+                // in pre-layout.
+                assertTrue(itemAnimator.contains(target, itemAnimator.mAnimatePersistenceList));
+                assertFalse(itemAnimator.contains(target, itemAnimator.mAnimateChangeList));
+                assertFalse(itemAnimator.contains(target, itemAnimator.mAnimateAppearanceList));
+                assertFalse(itemAnimator.contains(target, itemAnimator.mAnimateDisappearanceList));
+                assertTrue(itemAnimator.mMoveVHs.contains(target));
+                assertFalse(recycledVHs.contains(target));
+            }
+        });
+    }
+
+    public void testDontReuseHiddenViewOnInvalidate() throws Throwable {
+        reuseHiddenViewTest(new ReuseTestCallback() {
+            @Override
+            public void postSetup(List<TestViewHolder> recycledList,
+                    TestViewHolder target) throws Throwable {
+                // it should move to change scrap and then show up from there
+                LoggingItemAnimator itemAnimator = (LoggingItemAnimator) mRecyclerView
+                        .getItemAnimator();
+                itemAnimator.reset();
+                mLayoutManager.expectLayouts(1);
+                mTestAdapter.dispatchDataSetChanged();
+                mLayoutManager.waitForLayout(2);
+                waitForAnimations(5);
+                assertFalse(mRecyclerView.getItemAnimator().isRunning());
+                assertFalse(itemAnimator.contains(target, itemAnimator.mAnimatePersistenceList));
+                assertFalse(itemAnimator.contains(target, itemAnimator.mAnimateChangeList));
+                assertFalse(itemAnimator.contains(target, itemAnimator.mAnimateAppearanceList));
+                assertFalse(itemAnimator.contains(target, itemAnimator.mAnimateDisappearanceList));
+                assertTrue(recycledVHs.contains(target));
+            }
+        });
+    }
+
+    public void testDontReuseOnTypeChange() throws Throwable {
+        reuseHiddenViewTest(new ReuseTestCallback() {
+            @Override
+            public void postSetup(List<TestViewHolder> recycledList,
+                    TestViewHolder target) throws Throwable {
+                // it should move to change scrap and then show up from there
+                LoggingItemAnimator itemAnimator = (LoggingItemAnimator) mRecyclerView
+                        .getItemAnimator();
+                itemAnimator.reset();
+                mLayoutManager.expectLayouts(1);
+                target.mBoundItem.mType += 2;
+                mLayoutManager.mOnLayoutCallbacks.mLayoutItemCount = 9;
+                mTestAdapter.changeAndNotify(target.getAdapterPosition(), 1);
+                requestLayoutOnUIThread(mRecyclerView);
+                mLayoutManager.waitForLayout(2);
+
+                assertTrue(itemAnimator.mChangeOldVHs.contains(target));
+                assertFalse(itemAnimator.contains(target, itemAnimator.mAnimatePersistenceList));
+                assertFalse(itemAnimator.contains(target, itemAnimator.mAnimateAppearanceList));
+                assertFalse(itemAnimator.contains(target, itemAnimator.mAnimateDisappearanceList));
+                assertTrue(mRecyclerView.mChildHelper.isHidden(target.itemView));
+                assertFalse(recycledVHs.contains(target));
+                waitForAnimations(5);
+                assertTrue(recycledVHs.contains(target));
+            }
+        });
+    }
+
+    interface ReuseTestCallback {
+
+        void postSetup(List<TestViewHolder> recycledList, TestViewHolder target) throws Throwable;
     }
 
     @Override
-    protected void setUp() throws Exception {
-        super.setUp();
+    protected RecyclerView.ItemAnimator createItemAnimator() {
+        return new LoggingItemAnimator();
     }
 
-    RecyclerView setupBasic(int itemCount) throws Throwable {
-        return setupBasic(itemCount, 0, itemCount);
-    }
-
-    RecyclerView setupBasic(int itemCount, int firstLayoutStartIndex, int firstLayoutItemCount)
-            throws Throwable {
-        return setupBasic(itemCount, firstLayoutStartIndex, firstLayoutItemCount, null);
-    }
-
-    RecyclerView setupBasic(int itemCount, int firstLayoutStartIndex, int firstLayoutItemCount,
-            TestAdapter testAdapter)
-            throws Throwable {
-        final TestRecyclerView recyclerView = new TestRecyclerView(getActivity());
-        recyclerView.setHasFixedSize(true);
-        if (testAdapter == null) {
-            mTestAdapter = new TestAdapter(itemCount);
-        } else {
-            mTestAdapter = testAdapter;
-        }
-        recyclerView.setAdapter(mTestAdapter);
-        mLayoutManager = new AnimationLayoutManager();
-        recyclerView.setLayoutManager(mLayoutManager);
-        mLayoutManager.mOnLayoutCallbacks.mLayoutMin = firstLayoutStartIndex;
-        mLayoutManager.mOnLayoutCallbacks.mLayoutItemCount = firstLayoutItemCount;
-
-        mLayoutManager.expectLayouts(1);
-        recyclerView.expectDraw(1);
-        setRecyclerView(recyclerView);
+    public void reuseHiddenViewTest(ReuseTestCallback callback) throws Throwable {
+        TestAdapter adapter = new TestAdapter(10) {
+            @Override
+            public void onViewRecycled(TestViewHolder holder) {
+                super.onViewRecycled(holder);
+                recycledVHs.add(holder);
+            }
+        };
+        setupBasic(10, 0, 10, adapter);
+        mRecyclerView.setItemViewCacheSize(0);
+        TestViewHolder target = (TestViewHolder) mRecyclerView.findViewHolderForAdapterPosition(9);
+        mRecyclerView.getItemAnimator().setAddDuration(1000);
+        mRecyclerView.getItemAnimator().setRemoveDuration(1000);
+        mRecyclerView.getItemAnimator().setChangeDuration(1000);
+        mRecyclerView.getItemAnimator().setMoveDuration(1000);
+        mLayoutManager.mOnLayoutCallbacks.mLayoutItemCount = 8;
+        mLayoutManager.expectLayouts(2);
+        adapter.deleteAndNotify(2, 1);
         mLayoutManager.waitForLayout(2);
-        recyclerView.waitForDraw(1);
-        mLayoutManager.mOnLayoutCallbacks.reset();
-        getInstrumentation().waitForIdleSync();
-        assertEquals("extra layouts should not happen", 1, mLayoutManager.getTotalLayoutCount());
-        assertEquals("all expected children should be laid out", firstLayoutItemCount,
-                mLayoutManager.getChildCount());
-        return recyclerView;
+        // test sanity, make sure target is hidden now
+        assertTrue("test sanity", mRecyclerView.mChildHelper.isHidden(target.itemView));
+        callback.postSetup(recycledVHs, target);
+        // TODO TEST ITEM INVALIDATION OR TYPE CHANGE IN BETWEEN
+        // TODO TEST ITEM IS RECEIVED FROM RECYCLER BUT NOT RE-ADDED
+        // TODO TEST ITEM ANIMATOR IS CALLED TO GET NEW INFORMATION ABOUT LOCATION
+
     }
 
     public void testDetachBeforeAnimations() throws Throwable {
@@ -133,7 +381,7 @@ public class RecyclerViewAnimationsTest extends BaseRecyclerViewInstrumentationT
                 mRecyclerView.addItemDecoration(new RecyclerView.ItemDecoration() {
                     @Override
                     public void getItemOffsets(Rect outRect, View view, RecyclerView parent,
-                                               RecyclerView.State state) {
+                            RecyclerView.State state) {
                         if (view == targetChild[0]) {
                             outRect.set(10, 20, 30, 40);
                         } else {
@@ -287,7 +535,6 @@ public class RecyclerViewAnimationsTest extends BaseRecyclerViewInstrumentationT
         mLayoutManager.waitForLayout(2);
 
 
-
     }
 
     public void testAddRemoveSamePass() throws Throwable {
@@ -379,7 +626,11 @@ public class RecyclerViewAnimationsTest extends BaseRecyclerViewInstrumentationT
         assertTrue("added-removed view should be recycled", found);
     }
 
-    public void testChangeAnimations()  throws Throwable {
+    public void testTmpRemoveMe() throws Throwable {
+        changeAnimTest(false, false, true, false);
+    }
+
+    public void testChangeAnimations() throws Throwable {
         final boolean[] booleans = {true, false};
         for (boolean supportsChange : booleans) {
             for (boolean changeType : booleans) {
@@ -392,15 +643,16 @@ public class RecyclerViewAnimationsTest extends BaseRecyclerViewInstrumentationT
             }
         }
     }
+
     public void changeAnimTest(final boolean supportsChangeAnim, final boolean changeType,
-            final boolean hasStableIds, final boolean deleteSomeItems)  throws Throwable {
+            final boolean hasStableIds, final boolean deleteSomeItems) throws Throwable {
         final int changedIndex = 3;
         final int defaultType = 1;
         final AtomicInteger changedIndexNewType = new AtomicInteger(defaultType);
         final String logPrefix = "supportsChangeAnim:" + supportsChangeAnim +
                 ", change view type:" + changeType +
                 ", has stable ids:" + hasStableIds +
-                ", force predictive:" + deleteSomeItems;
+                ", delete some items:" + deleteSomeItems;
         TestAdapter testAdapter = new TestAdapter(10) {
             @Override
             public int getItemViewType(int position) {
@@ -428,7 +680,8 @@ public class RecyclerViewAnimationsTest extends BaseRecyclerViewInstrumentationT
         };
         testAdapter.setHasStableIds(hasStableIds);
         setupBasic(testAdapter.getItemCount(), 0, 10, testAdapter);
-        mRecyclerView.getItemAnimator().setSupportsChangeAnimations(supportsChangeAnim);
+        ((SimpleItemAnimator) mRecyclerView.getItemAnimator()).setSupportsChangeAnimations(
+                supportsChangeAnim);
 
         final RecyclerView.ViewHolder toBeChangedVH =
                 mRecyclerView.findViewHolderForLayoutPosition(changedIndex);
@@ -439,13 +692,8 @@ public class RecyclerViewAnimationsTest extends BaseRecyclerViewInstrumentationT
                     RecyclerView.State state) {
                 RecyclerView.ViewHolder vh = mRecyclerView.findViewHolderForLayoutPosition(
                         changedIndex);
-                if (supportsChangeAnim) {
-                    assertTrue(logPrefix + " changed view holder should have correct flag"
-                            , vh.isChanged());
-                } else {
-                    assertFalse(logPrefix + " changed view holder should have correct flag"
-                            , vh.isChanged());
-                }
+                assertTrue(logPrefix + " changed view holder should have correct flag"
+                        , vh.isUpdated());
             }
 
             @Override
@@ -453,7 +701,6 @@ public class RecyclerViewAnimationsTest extends BaseRecyclerViewInstrumentationT
                     AnimationLayoutManager layoutManager, RecyclerView.State state) {
                 RecyclerView.ViewHolder vh = mRecyclerView.findViewHolderForLayoutPosition(
                         changedIndex);
-                assertFalse(logPrefix + "VH should not be marked as changed", vh.isChanged());
                 if (supportsChangeAnim) {
                     assertNotSame(logPrefix + "a new VH should be given if change is supported",
                             toBeChangedVH, vh);
@@ -482,7 +729,7 @@ public class RecyclerViewAnimationsTest extends BaseRecyclerViewInstrumentationT
                 }
             });
         } else {
-            mTestAdapter.notifyItemChanged(3);
+            mTestAdapter.changeAndNotify(3, 1);
         }
 
         mLayoutManager.waitForLayout(2);
@@ -492,7 +739,7 @@ public class RecyclerViewAnimationsTest extends BaseRecyclerViewInstrumentationT
         if (list1.size() != list2.size()) {
             return false;
         }
-        for (int i= 0; i < list1.size(); i++) {
+        for (int i = 0; i < list1.size(); i++) {
             if (!list1.get(i).equals(list2.get(i))) {
                 return false;
             }
@@ -501,8 +748,8 @@ public class RecyclerViewAnimationsTest extends BaseRecyclerViewInstrumentationT
     }
 
     private void testChangeWithPayload(final boolean supportsChangeAnim,
-            Object[][] notifyPayloads,  Object[][] expectedPayloadsInOnBind)
-                    throws Throwable {
+            Object[][] notifyPayloads, Object[][] expectedPayloadsInOnBind)
+            throws Throwable {
         final List<Object> expectedPayloads = new ArrayList<Object>();
         final int changedIndex = 3;
         TestAdapter testAdapter = new TestAdapter(10) {
@@ -533,10 +780,11 @@ public class RecyclerViewAnimationsTest extends BaseRecyclerViewInstrumentationT
         };
         testAdapter.setHasStableIds(false);
         setupBasic(testAdapter.getItemCount(), 0, 10, testAdapter);
-        mRecyclerView.getItemAnimator().setSupportsChangeAnimations(supportsChangeAnim);
+        ((SimpleItemAnimator) mRecyclerView.getItemAnimator()).setSupportsChangeAnimations(
+                supportsChangeAnim);
 
         int numTests = notifyPayloads.length;
-        for (int i= 0; i < numTests; i++) {
+        for (int i = 0; i < numTests; i++) {
             mLayoutManager.expectLayouts(1);
             expectedPayloads.clear();
             for (int j = 0; j < expectedPayloadsInOnBind[i].length; j++) {
@@ -552,45 +800,46 @@ public class RecyclerViewAnimationsTest extends BaseRecyclerViewInstrumentationT
                 }
             });
             mLayoutManager.waitForLayout(2);
+            checkForMainThreadException();
         }
     }
 
-    public void testCrossFadingChangeAnimationWithPayload()  throws Throwable {
+    public void testCrossFadingChangeAnimationWithPayload() throws Throwable {
         // for crossfading change animation,  will receive EMPTY payload in onBindViewHolder
         testChangeWithPayload(true,
                 new Object[][]{
-                    new Object[]{"abc"},
-                    new Object[]{"abc", null, "cdf"},
-                    new Object[]{"abc", null},
-                    new Object[]{null, "abc"},
-                    new Object[]{"abc", "cdf"}
+                        new Object[]{"abc"},
+                        new Object[]{"abc", null, "cdf"},
+                        new Object[]{"abc", null},
+                        new Object[]{null, "abc"},
+                        new Object[]{"abc", "cdf"}
                 },
                 new Object[][]{
-                    new Object[0],
-                    new Object[0],
-                    new Object[0],
-                    new Object[0],
-                    new Object[0]
+                        new Object[0],
+                        new Object[0],
+                        new Object[0],
+                        new Object[0],
+                        new Object[0]
                 });
     }
 
-    public void testNoChangeAnimationWithPayload()  throws Throwable {
+    public void testNoChangeAnimationWithPayload() throws Throwable {
         // for Change Animation disabled, payload should match the payloads unless
         // null payload is fired.
         testChangeWithPayload(false,
                 new Object[][]{
-                    new Object[]{"abc"},
-                    new Object[]{"abc", null, "cdf"},
-                    new Object[]{"abc", null},
-                    new Object[]{null, "abc"},
-                    new Object[]{"abc", "cdf"}
+                        new Object[]{"abc"},
+                        new Object[]{"abc", null, "cdf"},
+                        new Object[]{"abc", null},
+                        new Object[]{null, "abc"},
+                        new Object[]{"abc", "cdf"}
                 },
                 new Object[][]{
-                new Object[]{"abc"},
-                new Object[0],
-                new Object[0],
-                new Object[0],
-                new Object[]{"abc", "cdf"}
+                        new Object[]{"abc"},
+                        new Object[0],
+                        new Object[0],
+                        new Object[0],
+                        new Object[]{"abc", "cdf"}
                 });
     }
 
@@ -626,7 +875,7 @@ public class RecyclerViewAnimationsTest extends BaseRecyclerViewInstrumentationT
         });
 
         // now keep adding children to trigger more children being created etc.
-        for (int i = 0; i < 100; i ++) {
+        for (int i = 0; i < 100; i++) {
             adapter.addAndNotify(15, 1);
             Thread.sleep(50);
         }
@@ -674,19 +923,19 @@ public class RecyclerViewAnimationsTest extends BaseRecyclerViewInstrumentationT
         adapter.setHasStableIds(true);
         initialSet.addAll(adapter.mItems);
         positionStatesTest(itemCount, 5, 5, adapter, new AdapterOps() {
-            @Override
-            void onRun(TestAdapter testAdapter) throws Throwable {
-                Item item5 = adapter.mItems.get(5);
-                Item item6 = adapter.mItems.get(6);
-                item5.mAdapterIndex = 6;
-                item6.mAdapterIndex = 5;
-                adapter.mItems.remove(5);
-                adapter.mItems.add(6, item5);
-                adapter.dispatchDataSetChanged();
-                //hacky, we support only 1 layout pass
-                mLayoutManager.layoutLatch.countDown();
-            }
-        }, PositionConstraint.scrap(6, -1, 5), PositionConstraint.scrap(5, -1, 6),
+                    @Override
+                    void onRun(TestAdapter testAdapter) throws Throwable {
+                        Item item5 = adapter.mItems.get(5);
+                        Item item6 = adapter.mItems.get(6);
+                        item5.mAdapterIndex = 6;
+                        item6.mAdapterIndex = 5;
+                        adapter.mItems.remove(5);
+                        adapter.mItems.add(6, item5);
+                        adapter.dispatchDataSetChanged();
+                        //hacky, we support only 1 layout pass
+                        mLayoutManager.layoutLatch.countDown();
+                    }
+                }, PositionConstraint.scrap(6, -1, 5), PositionConstraint.scrap(5, -1, 6),
                 PositionConstraint.scrap(7, -1, 7), PositionConstraint.scrap(8, -1, 8),
                 PositionConstraint.scrap(9, -1, 9));
         // now mix items.
@@ -738,7 +987,7 @@ public class RecyclerViewAnimationsTest extends BaseRecyclerViewInstrumentationT
                     itemViewTypeQueries.contains(i));
             if (adapter.hasStableIds()) {
                 assertTrue("getItemId for existing item " + i
-                        + " should be called when adapter has stable ids",
+                                + " should be called when adapter has stable ids",
                         itemIdQueries.contains(i));
             }
         }
@@ -779,13 +1028,17 @@ public class RecyclerViewAnimationsTest extends BaseRecyclerViewInstrumentationT
         // try to trigger race conditions
         int targetItemCount = mTestAdapter.getItemCount();
         for (int i = 0; i < 100; i++) {
+            checkForMainThreadException();
             mTestAdapter.addAndNotify(0, 1);
+            checkForMainThreadException();
             mTestAdapter.addAndNotify(7, 1);
             targetItemCount += 2;
         }
+        checkForMainThreadException();
         // wait until main thread runnables are consumed
         while (targetItemCount != mTestAdapter.getItemCount()) {
             Thread.sleep(100);
+            checkForMainThreadException();
         }
         mLayoutManager.waitForLayout(2);
     }
@@ -990,10 +1243,6 @@ public class RecyclerViewAnimationsTest extends BaseRecyclerViewInstrumentationT
                 8, mRecyclerView.getChildCount());
     }
 
-    public TestRecyclerView getTestRecyclerView() {
-        return (TestRecyclerView) mRecyclerView;
-    }
-
     public void testRemoveScrapInvalidate() throws Throwable {
         setupBasic(10);
         TestRecyclerView testRecyclerView = getTestRecyclerView();
@@ -1035,11 +1284,14 @@ public class RecyclerViewAnimationsTest extends BaseRecyclerViewInstrumentationT
         runTestOnUiThread(new Runnable() {
             @Override
             public void run() {
-                // [0,1,2,3,4]
-                // delete 1
-                mTestAdapter.notifyItemRangeRemoved(1, 1);
-                // delete 3
-                mTestAdapter.notifyItemRangeRemoved(2, 1);
+                try {
+                    // delete 1
+                    mTestAdapter.deleteAndNotify(1, 1);
+                    // delete 3
+                    mTestAdapter.deleteAndNotify(2, 1);
+                } catch (Throwable throwable) {
+                    throwable.printStackTrace();
+                }
             }
         });
         mLayoutManager.waitForLayout(2);
@@ -1092,35 +1344,35 @@ public class RecyclerViewAnimationsTest extends BaseRecyclerViewInstrumentationT
 
     public void testAddDelete2() throws Throwable {
         positionStatesTest(5, 0, 5, new AdapterOps() {
-            // 0 1 2 3 4
-            // 0 1 2 a b 3 4
-            // 0 1 b 3 4
-            // pre: 0 1 2 3 4
-            // pre w/ adap: 0 1 2 b 3 4
-            @Override
-            void onRun(TestAdapter adapter) throws Throwable {
-                adapter.addDeleteAndNotify(new int[]{3, 2}, new int[]{2, -2});
-            }
-        }, PositionConstraint.scrap(2, 2, -1), PositionConstraint.scrap(1, 1, 1),
+                    // 0 1 2 3 4
+                    // 0 1 2 a b 3 4
+                    // 0 1 b 3 4
+                    // pre: 0 1 2 3 4
+                    // pre w/ adap: 0 1 2 b 3 4
+                    @Override
+                    void onRun(TestAdapter adapter) throws Throwable {
+                        adapter.addDeleteAndNotify(new int[]{3, 2}, new int[]{2, -2});
+                    }
+                }, PositionConstraint.scrap(2, 2, -1), PositionConstraint.scrap(1, 1, 1),
                 PositionConstraint.scrap(3, 3, 3)
         );
     }
 
     public void testAddDelete1() throws Throwable {
         positionStatesTest(5, 0, 5, new AdapterOps() {
-            // 0 1 2 3 4
-            // 0 1 2 a b 3 4
-            // 0 2 a b 3 4
-            // 0 c d 2 a b 3 4
-            // 0 c d 2 a 4
-            // c d 2 a 4
-            // pre: 0 1 2 3 4
-            @Override
-            void onRun(TestAdapter adapter) throws Throwable {
-                adapter.addDeleteAndNotify(new int[]{3, 2}, new int[]{1, -1},
-                        new int[]{1, 2}, new int[]{5, -2}, new int[]{0, -1});
-            }
-        }, PositionConstraint.scrap(0, 0, -1), PositionConstraint.scrap(1, 1, -1),
+                    // 0 1 2 3 4
+                    // 0 1 2 a b 3 4
+                    // 0 2 a b 3 4
+                    // 0 c d 2 a b 3 4
+                    // 0 c d 2 a 4
+                    // c d 2 a 4
+                    // pre: 0 1 2 3 4
+                    @Override
+                    void onRun(TestAdapter adapter) throws Throwable {
+                        adapter.addDeleteAndNotify(new int[]{3, 2}, new int[]{1, -1},
+                                new int[]{1, 2}, new int[]{5, -2}, new int[]{0, -1});
+                    }
+                }, PositionConstraint.scrap(0, 0, -1), PositionConstraint.scrap(1, 1, -1),
                 PositionConstraint.scrap(2, 2, 2), PositionConstraint.scrap(3, 3, -1),
                 PositionConstraint.scrap(4, 4, 4), PositionConstraint.adapter(0),
                 PositionConstraint.adapter(1), PositionConstraint.adapter(3)
@@ -1129,12 +1381,12 @@ public class RecyclerViewAnimationsTest extends BaseRecyclerViewInstrumentationT
 
     public void testAddSameIndexTwice() throws Throwable {
         positionStatesTest(12, 2, 7, new AdapterOps() {
-            @Override
-            void onRun(TestAdapter adapter) throws Throwable {
-                adapter.addAndNotify(new int[]{1, 2}, new int[]{5, 1}, new int[]{5, 1},
-                        new int[]{11, 1});
-            }
-        }, PositionConstraint.adapterScrap(0, 0), PositionConstraint.adapterScrap(1, 3),
+                    @Override
+                    void onRun(TestAdapter adapter) throws Throwable {
+                        adapter.addAndNotify(new int[]{1, 2}, new int[]{5, 1}, new int[]{5, 1},
+                                new int[]{11, 1});
+                    }
+                }, PositionConstraint.adapterScrap(0, 0), PositionConstraint.adapterScrap(1, 3),
                 PositionConstraint.scrap(2, 2, 4), PositionConstraint.scrap(3, 3, 7),
                 PositionConstraint.scrap(4, 4, 8), PositionConstraint.scrap(7, 7, 12),
                 PositionConstraint.scrap(8, 8, 13)
@@ -1143,12 +1395,12 @@ public class RecyclerViewAnimationsTest extends BaseRecyclerViewInstrumentationT
 
     public void testDeleteTwice() throws Throwable {
         positionStatesTest(12, 2, 7, new AdapterOps() {
-            @Override
-            void onRun(TestAdapter adapter) throws Throwable {
-                adapter.deleteAndNotify(new int[]{0, 1}, new int[]{1, 1}, new int[]{7, 1},
-                        new int[]{0, 1});// delete item ids 0,2,9,1
-            }
-        }, PositionConstraint.scrap(2, 0, -1), PositionConstraint.scrap(3, 1, 0),
+                    @Override
+                    void onRun(TestAdapter adapter) throws Throwable {
+                        adapter.deleteAndNotify(new int[]{0, 1}, new int[]{1, 1}, new int[]{7, 1},
+                                new int[]{0, 1});// delete item ids 0,2,9,1
+                    }
+                }, PositionConstraint.scrap(2, 0, -1), PositionConstraint.scrap(3, 1, 0),
                 PositionConstraint.scrap(4, 2, 1), PositionConstraint.scrap(5, 3, 2),
                 PositionConstraint.scrap(6, 4, 3), PositionConstraint.scrap(8, 6, 5),
                 PositionConstraint.adapterScrap(7, 6), PositionConstraint.adapterScrap(8, 7)
@@ -1160,10 +1412,11 @@ public class RecyclerViewAnimationsTest extends BaseRecyclerViewInstrumentationT
             int firstLayoutItemCount, AdapterOps adapterChanges,
             final PositionConstraint... constraints) throws Throwable {
         positionStatesTest(itemCount, firstLayoutStartIndex, firstLayoutItemCount, null,
-                adapterChanges,  constraints);
+                adapterChanges, constraints);
     }
+
     public void positionStatesTest(int itemCount, int firstLayoutStartIndex,
-            int firstLayoutItemCount,TestAdapter adapter, AdapterOps adapterChanges,
+            int firstLayoutItemCount, TestAdapter adapter, AdapterOps adapterChanges,
             final PositionConstraint... constraints) throws Throwable {
         setupBasic(itemCount, firstLayoutStartIndex, firstLayoutItemCount, adapter);
         mLayoutManager.expectLayouts(2);
@@ -1180,10 +1433,15 @@ public class RecyclerViewAnimationsTest extends BaseRecyclerViewInstrumentationT
                 }
                 Map<Integer, CollectPositionResult> positions
                         = collectPositions(lm.mRecyclerView, recycler, state, ids);
+                StringBuilder positionLog = new StringBuilder("\nPosition logs:\n");
+                for (Map.Entry<Integer, CollectPositionResult> entry : positions.entrySet()) {
+                    positionLog.append(entry.getKey()).append(":").append(entry.getValue())
+                            .append("\n");
+                }
                 for (PositionConstraint constraint : constraints) {
                     if (constraint.mPreLayoutPos != -1) {
                         constraint.validate(state, positions.get(constraint.mPreLayoutPos),
-                                lm.getLog());
+                                lm.getLog() + positionLog);
                     }
                 }
             }
@@ -1199,10 +1457,15 @@ public class RecyclerViewAnimationsTest extends BaseRecyclerViewInstrumentationT
                 }
                 Map<Integer, CollectPositionResult> positions
                         = collectPositions(lm.mRecyclerView, recycler, state, ids);
+                StringBuilder positionLog = new StringBuilder("\nPosition logs:\n");
+                for (Map.Entry<Integer, CollectPositionResult> entry : positions.entrySet()) {
+                    positionLog.append(entry.getKey()).append(":")
+                            .append(entry.getValue()).append("\n");
+                }
                 for (PositionConstraint constraint : constraints) {
                     if (constraint.mPostLayoutPos >= 0) {
                         constraint.validate(state, positions.get(constraint.mPostLayoutPos),
-                                lm.getLog());
+                                lm.getLog() + positionLog);
                     }
                 }
             }
@@ -1218,7 +1481,8 @@ public class RecyclerViewAnimationsTest extends BaseRecyclerViewInstrumentationT
     public void testAddThenRecycleRemovedView() throws Throwable {
         setupBasic(10);
         final AtomicInteger step = new AtomicInteger(0);
-        final List<RecyclerView.ViewHolder> animateRemoveList = new ArrayList<RecyclerView.ViewHolder>();
+        final List<RecyclerView.ViewHolder> animateRemoveList
+                = new ArrayList<RecyclerView.ViewHolder>();
         DefaultItemAnimator animator = new DefaultItemAnimator() {
             @Override
             public boolean animateRemove(RecyclerView.ViewHolder holder) {
@@ -1263,531 +1527,5 @@ public class RecyclerViewAnimationsTest extends BaseRecyclerViewInstrumentationT
         assertTrue("test sanity, view should be recycled", pooledViews.contains(targetVh[0]));
         assertTrue("since LM force recycled a view, animate disappearance should not be called",
                 animateRemoveList.isEmpty());
-    }
-
-    class AnimationLayoutManager extends TestLayoutManager {
-
-        private int mTotalLayoutCount = 0;
-        private String log;
-
-        OnLayoutCallbacks mOnLayoutCallbacks = new OnLayoutCallbacks() {
-        };
-
-
-
-        @Override
-        public boolean supportsPredictiveItemAnimations() {
-            return true;
-        }
-
-        public String getLog() {
-            return log;
-        }
-
-        private String prepareLog(RecyclerView.Recycler recycler, RecyclerView.State state, boolean done) {
-            StringBuilder builder = new StringBuilder();
-            builder.append("is pre layout:").append(state.isPreLayout()).append(", done:").append(done);
-            builder.append("\nViewHolders:\n");
-            for (RecyclerView.ViewHolder vh : ((TestRecyclerView)mRecyclerView).collectViewHolders()) {
-                builder.append(vh).append("\n");
-            }
-            builder.append("scrap:\n");
-            for (RecyclerView.ViewHolder vh : recycler.getScrapList()) {
-                builder.append(vh).append("\n");
-            }
-
-            if (state.isPreLayout() && !done) {
-                log = "\n" + builder.toString();
-            } else {
-                log += "\n" + builder.toString();
-            }
-            return log;
-        }
-
-        @Override
-        public void expectLayouts(int count) {
-            super.expectLayouts(count);
-            mOnLayoutCallbacks.mLayoutCount = 0;
-        }
-
-        public void setOnLayoutCallbacks(OnLayoutCallbacks onLayoutCallbacks) {
-            mOnLayoutCallbacks = onLayoutCallbacks;
-        }
-
-        @Override
-        public final void onLayoutChildren(RecyclerView.Recycler recycler,
-                RecyclerView.State state) {
-            try {
-                mTotalLayoutCount++;
-                prepareLog(recycler, state, false);
-                if (state.isPreLayout()) {
-                    validateOldPositions(recycler, state);
-                } else {
-                    validateClearedOldPositions(recycler, state);
-                }
-                mOnLayoutCallbacks.onLayoutChildren(recycler, this, state);
-                prepareLog(recycler, state, true);
-            } finally {
-                layoutLatch.countDown();
-            }
-        }
-
-        private void validateClearedOldPositions(RecyclerView.Recycler recycler,
-                RecyclerView.State state) {
-            if (getTestRecyclerView() == null) {
-                return;
-            }
-            for (RecyclerView.ViewHolder viewHolder : getTestRecyclerView().collectViewHolders()) {
-                assertEquals("there should NOT be an old position in post layout",
-                        RecyclerView.NO_POSITION, viewHolder.mOldPosition);
-                assertEquals("there should NOT be a pre layout position in post layout",
-                        RecyclerView.NO_POSITION, viewHolder.mPreLayoutPosition);
-            }
-        }
-
-        private void validateOldPositions(RecyclerView.Recycler recycler,
-                RecyclerView.State state) {
-            if (getTestRecyclerView() == null) {
-                return;
-            }
-            for (RecyclerView.ViewHolder viewHolder : getTestRecyclerView().collectViewHolders()) {
-                if (!viewHolder.isRemoved() && !viewHolder.isInvalid()) {
-                    assertTrue("there should be an old position in pre-layout",
-                            viewHolder.mOldPosition != RecyclerView.NO_POSITION);
-                }
-            }
-        }
-
-        public int getTotalLayoutCount() {
-            return mTotalLayoutCount;
-        }
-
-        @Override
-        public boolean canScrollVertically() {
-            return true;
-        }
-
-        @Override
-        public int scrollVerticallyBy(int dy, RecyclerView.Recycler recycler,
-                RecyclerView.State state) {
-            mOnLayoutCallbacks.onScroll(dy, recycler, state);
-            return super.scrollVerticallyBy(dy, recycler, state);
-        }
-
-        public void onPostDispatchLayout() {
-            mOnLayoutCallbacks.postDispatchLayout();
-        }
-
-        @Override
-        public void waitForLayout(long timeout, TimeUnit timeUnit) throws Throwable {
-            super.waitForLayout(timeout, timeUnit);
-            checkForMainThreadException();
-        }
-    }
-
-    abstract class OnLayoutCallbacks {
-
-        int mLayoutMin = Integer.MIN_VALUE;
-
-        int mLayoutItemCount = Integer.MAX_VALUE;
-
-        int expectedPreLayoutItemCount = -1;
-
-        int expectedPostLayoutItemCount = -1;
-
-        int mDeletedViewCount;
-
-        int mLayoutCount = 0;
-
-        void setExpectedItemCounts(int preLayout, int postLayout) {
-            expectedPreLayoutItemCount = preLayout;
-            expectedPostLayoutItemCount = postLayout;
-        }
-
-        void reset() {
-            mLayoutMin = Integer.MIN_VALUE;
-            mLayoutItemCount = Integer.MAX_VALUE;
-            expectedPreLayoutItemCount = -1;
-            expectedPostLayoutItemCount = -1;
-            mLayoutCount = 0;
-        }
-
-        void beforePreLayout(RecyclerView.Recycler recycler,
-                AnimationLayoutManager lm, RecyclerView.State state) {
-            mDeletedViewCount = 0;
-            for (int i = 0; i < lm.getChildCount(); i++) {
-                View v = lm.getChildAt(i);
-                if (lm.getLp(v).isItemRemoved()) {
-                    mDeletedViewCount++;
-                }
-            }
-        }
-
-        void doLayout(RecyclerView.Recycler recycler, AnimationLayoutManager lm,
-                RecyclerView.State state) {
-            if (DEBUG) {
-                Log.d(TAG, "item count " + state.getItemCount());
-            }
-            lm.detachAndScrapAttachedViews(recycler);
-            final int start = mLayoutMin == Integer.MIN_VALUE ? 0 : mLayoutMin;
-            final int count = mLayoutItemCount
-                    == Integer.MAX_VALUE ? state.getItemCount() : mLayoutItemCount;
-            lm.layoutRange(recycler, start, start + count);
-            assertEquals("correct # of children should be laid out",
-                    count, lm.getChildCount());
-            lm.assertVisibleItemPositions();
-        }
-
-        private void assertNoPreLayoutPosition(RecyclerView.Recycler recycler) {
-            for (RecyclerView.ViewHolder vh : recycler.mAttachedScrap) {
-                assertPreLayoutPosition(vh);
-            }
-        }
-
-        private void assertNoPreLayoutPosition(RecyclerView.LayoutManager lm) {
-            for (int i = 0; i < lm.getChildCount(); i ++) {
-                final RecyclerView.ViewHolder vh = mRecyclerView
-                        .getChildViewHolder(lm.getChildAt(i));
-                assertPreLayoutPosition(vh);
-            }
-        }
-
-        private void assertPreLayoutPosition(RecyclerView.ViewHolder vh) {
-            assertEquals("in post layout, there should not be a view holder w/ a pre "
-                    + "layout position", RecyclerView.NO_POSITION, vh.mPreLayoutPosition);
-            assertEquals("in post layout, there should not be a view holder w/ an old "
-                    + "layout position", RecyclerView.NO_POSITION, vh.mOldPosition);
-        }
-
-        void onLayoutChildren(RecyclerView.Recycler recycler, AnimationLayoutManager lm,
-                RecyclerView.State state) {
-
-            if (state.isPreLayout()) {
-                if (expectedPreLayoutItemCount != -1) {
-                    assertEquals("on pre layout, state should return abstracted adapter size",
-                            expectedPreLayoutItemCount, state.getItemCount());
-                }
-                beforePreLayout(recycler, lm, state);
-            } else {
-                if (expectedPostLayoutItemCount != -1) {
-                    assertEquals("on post layout, state should return real adapter size",
-                            expectedPostLayoutItemCount, state.getItemCount());
-                }
-                beforePostLayout(recycler, lm, state);
-            }
-            if (!state.isPreLayout()) {
-                assertNoPreLayoutPosition(recycler);
-            }
-            doLayout(recycler, lm, state);
-            if (state.isPreLayout()) {
-                afterPreLayout(recycler, lm, state);
-            } else {
-                afterPostLayout(recycler, lm, state);
-                assertNoPreLayoutPosition(lm);
-            }
-            mLayoutCount++;
-        }
-
-        void afterPreLayout(RecyclerView.Recycler recycler, AnimationLayoutManager layoutManager,
-                RecyclerView.State state) {
-        }
-
-        void beforePostLayout(RecyclerView.Recycler recycler, AnimationLayoutManager layoutManager,
-                RecyclerView.State state) {
-        }
-
-        void afterPostLayout(RecyclerView.Recycler recycler, AnimationLayoutManager layoutManager,
-                RecyclerView.State state) {
-        }
-
-        void postDispatchLayout() {
-        }
-
-        public void onScroll(int dx, RecyclerView.Recycler recycler, RecyclerView.State state) {
-
-        }
-    }
-
-    class TestRecyclerView extends RecyclerView {
-
-        CountDownLatch drawLatch;
-
-        public TestRecyclerView(Context context) {
-            super(context);
-        }
-
-        public TestRecyclerView(Context context, AttributeSet attrs) {
-            super(context, attrs);
-        }
-
-        public TestRecyclerView(Context context, AttributeSet attrs, int defStyle) {
-            super(context, attrs, defStyle);
-        }
-
-        @Override
-        void initAdapterManager() {
-            super.initAdapterManager();
-            mAdapterHelper.mOnItemProcessedCallback = new Runnable() {
-                @Override
-                public void run() {
-                    validatePostUpdateOp();
-                }
-            };
-        }
-
-        @Override
-        boolean isAccessibilityEnabled() {
-            return true;
-        }
-
-        public void expectDraw(int count) {
-            drawLatch = new CountDownLatch(count);
-        }
-
-        public void waitForDraw(long timeout) throws Throwable {
-            drawLatch.await(timeout * (DEBUG ? 100 : 1), TimeUnit.SECONDS);
-            assertEquals("all expected draws should happen at the expected time frame",
-                    0, drawLatch.getCount());
-        }
-
-        List<ViewHolder> collectViewHolders() {
-            List<ViewHolder> holders = new ArrayList<ViewHolder>();
-            final int childCount = getChildCount();
-            for (int i = 0; i < childCount; i++) {
-                ViewHolder holder = getChildViewHolderInt(getChildAt(i));
-                if (holder != null) {
-                    holders.add(holder);
-                }
-            }
-            return holders;
-        }
-
-
-        private void validateViewHolderPositions() {
-            final Set<Integer> existingOffsets = new HashSet<Integer>();
-            int childCount = getChildCount();
-            StringBuilder log = new StringBuilder();
-            for (int i = 0; i < childCount; i++) {
-                ViewHolder vh = getChildViewHolderInt(getChildAt(i));
-                TestViewHolder tvh = (TestViewHolder) vh;
-                log.append(tvh.mBoundItem).append(vh)
-                        .append(" hidden:")
-                        .append(mChildHelper.mHiddenViews.contains(vh.itemView))
-                        .append("\n");
-            }
-            for (int i = 0; i < childCount; i++) {
-                ViewHolder vh = getChildViewHolderInt(getChildAt(i));
-                if (vh.isInvalid()) {
-                    continue;
-                }
-                if (vh.getLayoutPosition() < 0) {
-                    LayoutManager lm = getLayoutManager();
-                    for (int j = 0; j < lm.getChildCount(); j ++) {
-                        assertNotSame("removed view holder should not be in LM's child list",
-                                vh.itemView, lm.getChildAt(j));
-                    }
-                } else if (!mChildHelper.mHiddenViews.contains(vh.itemView)) {
-                    if (!existingOffsets.add(vh.getLayoutPosition())) {
-                        throw new IllegalStateException("view holder position conflict for "
-                                + "existing views " + vh + "\n" + log);
-                    }
-                }
-            }
-        }
-
-        void validatePostUpdateOp() {
-            try {
-                validateViewHolderPositions();
-                if (super.mState.isPreLayout()) {
-                    validatePreLayoutSequence((AnimationLayoutManager) getLayoutManager());
-                }
-                validateAdapterPosition((AnimationLayoutManager) getLayoutManager());
-            } catch (Throwable t) {
-                postExceptionToInstrumentation(t);
-            }
-        }
-
-
-
-        private void validateAdapterPosition(AnimationLayoutManager lm) {
-            for (ViewHolder vh : collectViewHolders()) {
-                if (!vh.isRemoved() && vh.mPreLayoutPosition >= 0) {
-                    assertEquals("adapter position calculations should match view holder "
-                            + "pre layout:" + mState.isPreLayout()
-                            + " positions\n" + vh + "\n" + lm.getLog(),
-                            mAdapterHelper.findPositionOffset(vh.mPreLayoutPosition), vh.mPosition);
-                }
-            }
-        }
-
-        // ensures pre layout positions are continuous block. This is not necessarily a case
-        // but valid in test RV
-        private void validatePreLayoutSequence(AnimationLayoutManager lm) {
-            Set<Integer> preLayoutPositions = new HashSet<Integer>();
-            for (ViewHolder vh : collectViewHolders()) {
-                assertTrue("pre layout positions should be distinct " + lm.getLog(),
-                        preLayoutPositions.add(vh.mPreLayoutPosition));
-            }
-            int minPos = Integer.MAX_VALUE;
-            for (Integer pos : preLayoutPositions) {
-                if (pos < minPos) {
-                    minPos = pos;
-                }
-            }
-            for (int i = 1; i < preLayoutPositions.size(); i++) {
-                assertNotNull("next position should exist " + lm.getLog(),
-                        preLayoutPositions.contains(minPos + i));
-            }
-        }
-
-        @Override
-        protected void dispatchDraw(Canvas canvas) {
-            super.dispatchDraw(canvas);
-            if (drawLatch != null) {
-                drawLatch.countDown();
-            }
-        }
-
-        @Override
-        void dispatchLayout() {
-            try {
-                super.dispatchLayout();
-                if (getLayoutManager() instanceof AnimationLayoutManager) {
-                    ((AnimationLayoutManager) getLayoutManager()).onPostDispatchLayout();
-                }
-            } catch (Throwable t) {
-                postExceptionToInstrumentation(t);
-            }
-
-        }
-
-
-    }
-
-    abstract class AdapterOps {
-
-        final public void run(TestAdapter adapter) throws Throwable {
-            onRun(adapter);
-        }
-
-        abstract void onRun(TestAdapter testAdapter) throws Throwable;
-    }
-
-    static class CollectPositionResult {
-
-        // true if found in scrap
-        public RecyclerView.ViewHolder scrapResult;
-
-        public RecyclerView.ViewHolder adapterResult;
-
-        static CollectPositionResult fromScrap(RecyclerView.ViewHolder viewHolder) {
-            CollectPositionResult cpr = new CollectPositionResult();
-            cpr.scrapResult = viewHolder;
-            return cpr;
-        }
-
-        static CollectPositionResult fromAdapter(RecyclerView.ViewHolder viewHolder) {
-            CollectPositionResult cpr = new CollectPositionResult();
-            cpr.adapterResult = viewHolder;
-            return cpr;
-        }
-    }
-
-    static class PositionConstraint {
-
-        public static enum Type {
-            scrap,
-            adapter,
-            adapterScrap /*first pass adapter, second pass scrap*/
-        }
-
-        Type mType;
-
-        int mOldPos; // if VH
-
-        int mPreLayoutPos;
-
-        int mPostLayoutPos;
-
-        int mValidateCount = 0;
-
-        public static PositionConstraint scrap(int oldPos, int preLayoutPos, int postLayoutPos) {
-            PositionConstraint constraint = new PositionConstraint();
-            constraint.mType = Type.scrap;
-            constraint.mOldPos = oldPos;
-            constraint.mPreLayoutPos = preLayoutPos;
-            constraint.mPostLayoutPos = postLayoutPos;
-            return constraint;
-        }
-
-        public static PositionConstraint adapterScrap(int preLayoutPos, int position) {
-            PositionConstraint constraint = new PositionConstraint();
-            constraint.mType = Type.adapterScrap;
-            constraint.mOldPos = RecyclerView.NO_POSITION;
-            constraint.mPreLayoutPos = preLayoutPos;
-            constraint.mPostLayoutPos = position;// adapter pos does not change
-            return constraint;
-        }
-
-        public static PositionConstraint adapter(int position) {
-            PositionConstraint constraint = new PositionConstraint();
-            constraint.mType = Type.adapter;
-            constraint.mPreLayoutPos = RecyclerView.NO_POSITION;
-            constraint.mOldPos = RecyclerView.NO_POSITION;
-            constraint.mPostLayoutPos = position;// adapter pos does not change
-            return constraint;
-        }
-
-        public void assertValidate() {
-            int expectedValidate = 0;
-            if (mPreLayoutPos >= 0) {
-                expectedValidate ++;
-            }
-            if (mPostLayoutPos >= 0) {
-                expectedValidate ++;
-            }
-            assertEquals("should run all validates", expectedValidate, mValidateCount);
-        }
-
-        @Override
-        public String toString() {
-            return "Cons{" +
-                    "t=" + mType.name() +
-                    ", old=" + mOldPos +
-                    ", pre=" + mPreLayoutPos +
-                    ", post=" + mPostLayoutPos +
-                    '}';
-        }
-
-        public void validate(RecyclerView.State state, CollectPositionResult result, String log) {
-            mValidateCount ++;
-            assertNotNull(this + ": result should not be null\n" + log, result);
-            RecyclerView.ViewHolder viewHolder;
-            if (mType == Type.scrap || (mType == Type.adapterScrap && !state.isPreLayout())) {
-                assertNotNull(this + ": result should come from scrap\n" + log, result.scrapResult);
-                viewHolder = result.scrapResult;
-            } else {
-                assertNotNull(this + ": result should come from adapter\n"  + log,
-                        result.adapterResult);
-                assertEquals(this + ": old position should be none when it came from adapter\n" + log,
-                        RecyclerView.NO_POSITION, result.adapterResult.getOldPosition());
-                viewHolder = result.adapterResult;
-            }
-            if (state.isPreLayout()) {
-                assertEquals(this + ": pre-layout position should match\n" + log, mPreLayoutPos,
-                        viewHolder.mPreLayoutPosition == -1 ? viewHolder.mPosition :
-                        viewHolder.mPreLayoutPosition);
-                assertEquals(this + ": pre-layout getPosition should match\n" + log, mPreLayoutPos,
-                        viewHolder.getLayoutPosition());
-                if (mType == Type.scrap) {
-                    assertEquals(this + ": old position should match\n" + log, mOldPos,
-                            result.scrapResult.getOldPosition());
-                }
-            } else if (mType == Type.adapter || mType == Type.adapterScrap || !result.scrapResult
-                    .isRemoved()) {
-                assertEquals(this + ": post-layout position should match\n" + log + "\n\n"
-                        + viewHolder, mPostLayoutPos, viewHolder.getLayoutPosition());
-            }
-        }
     }
 }

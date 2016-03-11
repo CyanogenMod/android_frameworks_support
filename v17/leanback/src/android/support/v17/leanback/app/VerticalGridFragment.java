@@ -15,6 +15,7 @@ package android.support.v17.leanback.app;
 
 import android.support.annotation.ColorInt;
 import android.support.v17.leanback.R;
+import android.support.v17.leanback.transition.TransitionHelper;
 import android.support.v17.leanback.widget.BrowseFrameLayout;
 import android.support.v17.leanback.widget.OnChildLaidOutListener;
 import android.support.v17.leanback.widget.OnItemViewClickedListener;
@@ -38,7 +39,7 @@ import android.view.ViewGroup;
  * <p>Renders a vertical grid of objects given a {@link VerticalGridPresenter} and
  * an {@link ObjectAdapter}.
  */
-public class VerticalGridFragment extends BrandedFragment {
+public class VerticalGridFragment extends BaseFragment {
     private static final String TAG = "VerticalGridFragment";
     private static boolean DEBUG = false;
 
@@ -47,6 +48,7 @@ public class VerticalGridFragment extends BrandedFragment {
     private VerticalGridPresenter.ViewHolder mGridViewHolder;
     private OnItemViewSelectedListener mOnItemViewSelectedListener;
     private OnItemViewClickedListener mOnItemViewClickedListener;
+    private Object mSceneAfterEntranceTransition;
     private int mSelectedPosition = -1;
 
     /**
@@ -170,6 +172,13 @@ public class VerticalGridFragment extends BrandedFragment {
         gridDock.addView(mGridViewHolder.view);
         mGridViewHolder.getGridView().setOnChildLaidOutListener(mChildLaidOutListener);
 
+        mSceneAfterEntranceTransition = TransitionHelper.createScene(gridDock, new Runnable() {
+            @Override
+            public void run() {
+                setEntranceTransitionState(true);
+            }
+        });
+
         updateAdapter();
     }
 
@@ -183,7 +192,9 @@ public class VerticalGridFragment extends BrandedFragment {
     public void onStart() {
         super.onStart();
         setupFocusSearchListener();
-        mGridViewHolder.getGridView().requestFocus();
+        if (isEntranceTransitionEnabled()) {
+            setEntranceTransitionState(false);
+        }
     }
 
     @Override
@@ -209,5 +220,20 @@ public class VerticalGridFragment extends BrandedFragment {
                 mGridViewHolder.getGridView().setSelectedPosition(mSelectedPosition);
             }
         }
+    }
+
+    @Override
+    protected Object createEntranceTransition() {
+        return TransitionHelper.loadTransition(getActivity(),
+                R.transition.lb_vertical_grid_entrance_transition);
+    }
+
+    @Override
+    protected void runEntranceTransition(Object entranceTransition) {
+        TransitionHelper.runTransition(mSceneAfterEntranceTransition, entranceTransition);
+    }
+
+    void setEntranceTransitionState(boolean afterTransition) {
+        mGridPresenter.setEntranceTransitionState(mGridViewHolder, afterTransition);
     }
 }

@@ -66,4 +66,72 @@ public class BucketTests extends InstrumentationTestCase {
 
         assertEquals(swatches, p.getSwatches());
     }
+
+    public void testRegionWhole() {
+        Palette.Builder b = new Palette.Builder(mSource);
+        b.setRegion(0, 0, mSource.getWidth(), mSource.getHeight());
+
+        Throwable thrown = null;
+        try {
+            b.generate();
+        } catch (Exception e) {
+            thrown = e;
+        }
+        assertNull(thrown);
+    }
+
+    public void testRegionUpperLeft() {
+        Palette.Builder b = new Palette.Builder(mSource);
+        b.setRegion(0, 0, mSource.getWidth() / 2, mSource.getHeight() / 2);
+
+        Throwable thrown = null;
+        try {
+            b.generate();
+        } catch (Exception e) {
+            thrown = e;
+        }
+        assertNull(thrown);
+    }
+
+    public void testRegionBottomRight() {
+        Palette.Builder b = new Palette.Builder(mSource);
+        b.setRegion(mSource.getWidth() / 2, mSource.getHeight() / 2,
+                mSource.getWidth(), mSource.getHeight());
+
+        Throwable thrown = null;
+        try {
+            b.generate();
+        } catch (Exception e) {
+            thrown = e;
+        }
+        assertNull(thrown);
+    }
+
+    public void testOnePixelTallBitmap() {
+        Bitmap bitmap = Bitmap.createBitmap(1000, 1, Bitmap.Config.ARGB_8888);
+
+        Palette.Builder b = new Palette.Builder(bitmap);
+
+        Throwable thrown = null;
+        try {
+            b.generate();
+        } catch (Exception e) {
+            thrown = e;
+        }
+        assertNull(thrown);
+    }
+
+    public void testOnePixelWideBitmap() {
+        Bitmap bitmap = Bitmap.createBitmap(1, 1000, Bitmap.Config.ARGB_8888);
+
+        Palette.Builder b = new Palette.Builder(bitmap);
+
+        Throwable thrown = null;
+        try {
+            b.generate();
+        } catch (Exception e) {
+            thrown = e;
+        }
+        assertNull(thrown);
+    }
 }

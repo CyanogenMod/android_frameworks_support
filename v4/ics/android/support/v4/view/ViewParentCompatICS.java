@@ -23,7 +23,7 @@ import android.view.accessibility.AccessibilityEvent;
 /**
  * ICS-specific ViewParent API implementation.
  */
-class ViewParentCompatICS {
+public class ViewParentCompatICS {
     public static boolean requestSendAccessibilityEvent(
             ViewParent parent, View child, AccessibilityEvent event) {
         return parent.requestSendAccessibilityEvent(child, event);

@@ -39,6 +39,9 @@ import android.speech.RecognizerIntent;
 import android.support.v4.view.KeyEventCompat;
 import android.support.v4.widget.CursorAdapter;
 import android.support.v7.appcompat.R;
+import android.support.v7.internal.widget.TintManager;
+import android.support.v7.internal.widget.TintTypedArray;
+import android.support.v7.internal.widget.ViewUtils;
 import android.support.v7.view.CollapsibleActionView;
 import android.text.Editable;
 import android.text.InputType;
@@ -159,7 +162,7 @@ public class SearchView extends LinearLayoutCompat implements CollapsibleActionV
     private SearchableInfo mSearchable;
     private Bundle mAppSearchData;
 
-    private final AppCompatDrawableManager mDrawableManager;
+    private final TintManager mTintManager;
 
     static final AutoCompleteTextViewReflector HIDDEN_METHOD_INVOKER = new AutoCompleteTextViewReflector();
 
@@ -275,10 +278,10 @@ public class SearchView extends LinearLayoutCompat implements CollapsibleActionV
     public SearchView(Context context, AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
 
-        mDrawableManager = AppCompatDrawableManager.get();
-
         final TintTypedArray a = TintTypedArray.obtainStyledAttributes(context,
                 attrs, R.styleable.SearchView, defStyleAttr, 0);
+        // Keep the TintManager in case we need it later
+        mTintManager = a.getTintManager();
 
         final LayoutInflater inflater = LayoutInflater.from(context);
         final int layoutResId = a.getResourceId(
@@ -826,15 +829,7 @@ public class SearchView extends LinearLayoutCompat implements CollapsibleActionV
         mSearchButton.setVisibility(visCollapsed);
         updateSubmitButton(hasText);
         mSearchEditFrame.setVisibility(collapsed ? GONE : VISIBLE);
-
-        final int iconVisibility;
-        if (mCollapsedIcon.getDrawable() == null || mIconifiedByDefault) {
-            iconVisibility = GONE;
-        } else {
-            iconVisibility = VISIBLE;
-        }
-        mCollapsedIcon.setVisibility(iconVisibility);
-
+        mCollapsedIcon.setVisibility(mIconifiedByDefault ? GONE : VISIBLE);
         updateCloseButton();
         updateVoiceButton(!hasText);
         updateSubmitArea();

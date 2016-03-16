@@ -17,6 +17,7 @@
 package android.support.v7.widget.helper;
 
 import android.app.Instrumentation;
+import android.os.Debug;
 import android.os.SystemClock;
 import android.support.v4.view.ViewCompat;
 import android.support.v7.widget.BaseRecyclerViewInstrumentationTest;

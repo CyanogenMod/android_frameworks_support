@@ -32,22 +32,23 @@ import java.util.List;
  *
  * @see RecyclerView#setItemAnimator(RecyclerView.ItemAnimator)
  */
-public class DefaultItemAnimator extends SimpleItemAnimator {
+public class DefaultItemAnimator extends RecyclerView.ItemAnimator {
     private static final boolean DEBUG = false;
 
-    private ArrayList<ViewHolder> mPendingRemovals = new ArrayList<>();
-    private ArrayList<ViewHolder> mPendingAdditions = new ArrayList<>();
-    private ArrayList<MoveInfo> mPendingMoves = new ArrayList<>();
-    private ArrayList<ChangeInfo> mPendingChanges = new ArrayList<>();
+    private ArrayList<ViewHolder> mPendingRemovals = new ArrayList<ViewHolder>();
+    private ArrayList<ViewHolder> mPendingAdditions = new ArrayList<ViewHolder>();
+    private ArrayList<MoveInfo> mPendingMoves = new ArrayList<MoveInfo>();
+    private ArrayList<ChangeInfo> mPendingChanges = new ArrayList<ChangeInfo>();
 
-    private ArrayList<ArrayList<ViewHolder>> mAdditionsList = new ArrayList<>();
-    private ArrayList<ArrayList<MoveInfo>> mMovesList = new ArrayList<>();
-    private ArrayList<ArrayList<ChangeInfo>> mChangesList = new ArrayList<>();
+    private ArrayList<ArrayList<ViewHolder>> mAdditionsList =
+            new ArrayList<ArrayList<ViewHolder>>();
+    private ArrayList<ArrayList<MoveInfo>> mMovesList = new ArrayList<ArrayList<MoveInfo>>();
+    private ArrayList<ArrayList<ChangeInfo>> mChangesList = new ArrayList<ArrayList<ChangeInfo>>();
 
-    private ArrayList<ViewHolder> mAddAnimations = new ArrayList<>();
-    private ArrayList<ViewHolder> mMoveAnimations = new ArrayList<>();
-    private ArrayList<ViewHolder> mRemoveAnimations = new ArrayList<>();
-    private ArrayList<ViewHolder> mChangeAnimations = new ArrayList<>();
+    private ArrayList<ViewHolder> mAddAnimations = new ArrayList<ViewHolder>();
+    private ArrayList<ViewHolder> mMoveAnimations = new ArrayList<ViewHolder>();
+    private ArrayList<ViewHolder> mRemoveAnimations = new ArrayList<ViewHolder>();
+    private ArrayList<ViewHolder> mChangeAnimations = new ArrayList<ViewHolder>();
 
     private static class MoveInfo {
         public ViewHolder holder;
@@ -109,7 +110,7 @@ public class DefaultItemAnimator extends SimpleItemAnimator {
         mPendingRemovals.clear();
         // Next, move stuff
         if (movesPending) {
-            final ArrayList<MoveInfo> moves = new ArrayList<>();
+            final ArrayList<MoveInfo> moves = new ArrayList<MoveInfo>();
             moves.addAll(mPendingMoves);
             mMovesList.add(moves);
             mPendingMoves.clear();
@@ -133,7 +134,7 @@ public class DefaultItemAnimator extends SimpleItemAnimator {
         }
         // Next, change stuff, to run in parallel with move animations
         if (changesPending) {
-            final ArrayList<ChangeInfo> changes = new ArrayList<>();
+            final ArrayList<ChangeInfo> changes = new ArrayList<ChangeInfo>();
             changes.addAll(mPendingChanges);
             mChangesList.add(changes);
             mPendingChanges.clear();
@@ -156,7 +157,7 @@ public class DefaultItemAnimator extends SimpleItemAnimator {
         }
         // Next, add stuff
         if (additionsPending) {
-            final ArrayList<ViewHolder> additions = new ArrayList<>();
+            final ArrayList<ViewHolder> additions = new ArrayList<ViewHolder>();
             additions.addAll(mPendingAdditions);
             mAdditionsList.add(additions);
             mPendingAdditions.clear();
@@ -309,11 +310,6 @@ public class DefaultItemAnimator extends SimpleItemAnimator {
     @Override
     public boolean animateChange(ViewHolder oldHolder, ViewHolder newHolder,
             int fromX, int fromY, int toX, int toY) {
-        if (oldHolder == newHolder) {
-            // Don't know how to run change animations when the same view holder is re-used.
-            // run a move animation to handle position changes.
-            return animateMove(oldHolder, fromX, fromY, toX, toY);
-        }
         final float prevTranslationX = ViewCompat.getTranslationX(oldHolder.itemView);
         final float prevTranslationY = ViewCompat.getTranslationY(oldHolder.itemView);
         final float prevAlpha = ViewCompat.getAlpha(oldHolder.itemView);
@@ -324,7 +320,7 @@ public class DefaultItemAnimator extends SimpleItemAnimator {
         ViewCompat.setTranslationX(oldHolder.itemView, prevTranslationX);
         ViewCompat.setTranslationY(oldHolder.itemView, prevTranslationY);
         ViewCompat.setAlpha(oldHolder.itemView, prevAlpha);
-        if (newHolder != null) {
+        if (newHolder != null && newHolder.itemView != null) {
             // carry over translation values
             resetAnimation(newHolder);
             ViewCompat.setTranslationX(newHolder.itemView, -deltaX);
@@ -483,25 +479,21 @@ public class DefaultItemAnimator extends SimpleItemAnimator {
         }
 
         // animations should be ended by the cancel above.
-        //noinspection PointlessBooleanExpression,ConstantConditions
         if (mRemoveAnimations.remove(item) && DEBUG) {
             throw new IllegalStateException("after animation is cancelled, item should not be in "
                     + "mRemoveAnimations list");
         }
 
-        //noinspection PointlessBooleanExpression,ConstantConditions
         if (mAddAnimations.remove(item) && DEBUG) {
             throw new IllegalStateException("after animation is cancelled, item should not be in "
                     + "mAddAnimations list");
         }
 
-        //noinspection PointlessBooleanExpression,ConstantConditions
         if (mChangeAnimations.remove(item) && DEBUG) {
             throw new IllegalStateException("after animation is cancelled, item should not be in "
                     + "mChangeAnimations list");
         }
 
-        //noinspection PointlessBooleanExpression,ConstantConditions
         if (mMoveAnimations.remove(item) && DEBUG) {
             throw new IllegalStateException("after animation is cancelled, item should not be in "
                     + "mMoveAnimations list");
@@ -641,5 +633,5 @@ public class DefaultItemAnimator extends SimpleItemAnimator {
 
         @Override
         public void onAnimationCancel(View view) {}
-    }
+    };
 }

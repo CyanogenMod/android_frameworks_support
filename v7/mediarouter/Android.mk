@@ -30,16 +30,12 @@ LOCAL_AAPT_FLAGS := \
 LOCAL_JAR_EXCLUDE_FILES := none
 include $(BUILD_STATIC_JAVA_LIBRARY)
 
-support_module_src_files := $(LOCAL_SRC_FILES)
-
 # A helper sub-library that makes direct use of JellyBean APIs.
 include $(CLEAR_VARS)
 LOCAL_MODULE := android-support-v7-mediarouter-jellybean
 LOCAL_SDK_VERSION := 16
 LOCAL_SRC_FILES := $(call all-java-files-under, jellybean)
 include $(BUILD_STATIC_JAVA_LIBRARY)
-
-support_module_src_files += $(LOCAL_SRC_FILES)
 
 # A helper sub-library that makes direct use of JellyBean MR1 APIs.
 include $(CLEAR_VARS)
@@ -49,8 +45,6 @@ LOCAL_SRC_FILES := $(call all-java-files-under, jellybean-mr1)
 LOCAL_STATIC_JAVA_LIBRARIES := android-support-v7-mediarouter-jellybean
 include $(BUILD_STATIC_JAVA_LIBRARY)
 
-support_module_src_files += $(LOCAL_SRC_FILES)
-
 # A helper sub-library that makes direct use of JellyBean MR2 APIs.
 include $(CLEAR_VARS)
 LOCAL_MODULE := android-support-v7-mediarouter-jellybean-mr2
@@ -58,8 +52,6 @@ LOCAL_SDK_VERSION := 18
 LOCAL_SRC_FILES := $(call all-java-files-under, jellybean-mr2)
 LOCAL_STATIC_JAVA_LIBRARIES := android-support-v7-mediarouter-jellybean-mr1
 include $(BUILD_STATIC_JAVA_LIBRARY)
-
-support_module_src_files += $(LOCAL_SRC_FILES)
 
 # Here is the final static library that apps can link against.
 # The R class is automatically excluded from the generated library.
@@ -71,17 +63,14 @@ LOCAL_SDK_VERSION := 7
 LOCAL_SRC_FILES := $(call all-java-files-under,src)
 LOCAL_STATIC_JAVA_LIBRARIES := android-support-v7-mediarouter-jellybean-mr2
 LOCAL_JAVA_LIBRARIES := android-support-v4 android-support-v7-mediarouter-res \
-    android-support-v7-appcompat \
-    android-support-v7-palette
+    android-support-v7-appcompat
 include $(BUILD_STATIC_JAVA_LIBRARY)
-
-support_module_src_files += $(LOCAL_SRC_FILES)
 
 # API Check
 # ---------------------------------------------
 support_module := $(LOCAL_MODULE)
 support_module_api_dir := $(LOCAL_PATH)/api
 support_module_src_files := $(LOCAL_SRC_FILES)
-support_module_java_libraries := $(LOCAL_JAVA_LIBRARIES)
+support_module_java_libraries := $(LOCAL_JAVA_LIBRARIES) android-support-v7-mediarouter
 support_module_java_packages := android.support.v7.app android.support.v7.media
 include $(SUPPORT_API_CHECK)

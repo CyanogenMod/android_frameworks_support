@@ -28,7 +28,9 @@ import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewTreeObserver;
 
-class TransportMediatorJellybeanMR2 {
+class TransportMediatorJellybeanMR2
+        implements RemoteControlClient.OnGetPlaybackPositionListener,
+        RemoteControlClient.OnPlaybackPositionUpdateListener {
     final Context mContext;
     final AudioManager mAudioManager;
     final View mTargetView;
@@ -73,20 +75,7 @@ class TransportMediatorJellybeanMR2 {
             mTransportCallback.handleAudioFocusChange(focusChange);
         }
     };
-    final RemoteControlClient.OnGetPlaybackPositionListener mGetPlaybackPositionListener
-            = new RemoteControlClient.OnGetPlaybackPositionListener() {
-                @Override
-                public long onGetPlaybackPosition() {
-                    return mTransportCallback.getPlaybackPosition();
-                }
-            };
-    final RemoteControlClient.OnPlaybackPositionUpdateListener mPlaybackPositionUpdateListener
-            = new RemoteControlClient.OnPlaybackPositionUpdateListener() {
-                public void onPlaybackPositionUpdate(long newPositionMs) {
-                    mTransportCallback.playbackPositionUpdate(newPositionMs);
-                }
-            };
- 
+
     PendingIntent mPendingIntent;
     RemoteControlClient mRemoteControl;
     boolean mFocused;
@@ -123,8 +112,8 @@ class TransportMediatorJellybeanMR2 {
         mPendingIntent = PendingIntent.getBroadcast(mContext, 0, mIntent,
                 PendingIntent.FLAG_CANCEL_CURRENT);
         mRemoteControl = new RemoteControlClient(mPendingIntent);
-        mRemoteControl.setOnGetPlaybackPositionListener(mGetPlaybackPositionListener);
-        mRemoteControl.setPlaybackPositionUpdateListener(mPlaybackPositionUpdateListener);
+        mRemoteControl.setOnGetPlaybackPositionListener(this);
+        mRemoteControl.setPlaybackPositionUpdateListener(this);
     }
 
     void gainFocus() {
@@ -154,6 +143,16 @@ class TransportMediatorJellybeanMR2 {
         if (mFocused) {
             takeAudioFocus();
         }
+    }
+
+    @Override
+    public long onGetPlaybackPosition() {
+        return mTransportCallback.getPlaybackPosition();
+    }
+
+    @Override
+    public void onPlaybackPositionUpdate(long newPositionMs) {
+        mTransportCallback.playbackPositionUpdate(newPositionMs);
     }
 
     public void refreshState(boolean playing, long position, int transportControls) {

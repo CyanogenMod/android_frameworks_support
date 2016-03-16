@@ -20,7 +20,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     style="?attr/guidedActionItemContainerStyle" >
 
-    <android.support.v17.leanback.widget.CheckableImageView
+    <ImageView
         android:id="@+id/guidedactions_item_checkmark"
         style="?attr/guidedActionItemCheckmarkStyle"
         tools:ignore="ContentDescription" />
@@ -34,14 +34,13 @@
         android:id="@+id/guidedactions_item_content"
         style="?attr/guidedActionItemContentStyle" >
 
-        <android.support.v17.leanback.widget.GuidedActionEditText
+        <TextView
             android:id="@+id/guidedactions_item_title"
             style="?attr/guidedActionItemTitleStyle" />
 
-        <android.support.v17.leanback.widget.GuidedActionEditText
+        <TextView
             android:id="@+id/guidedactions_item_description"
             style="?attr/guidedActionItemDescriptionStyle" />
-
     </android.support.v17.leanback.widget.NonOverlappingLinearLayout>
 
     <ImageView

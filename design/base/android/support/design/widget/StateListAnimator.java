@@ -124,11 +124,8 @@ final class StateListAnimator {
         if (mLastMatch != null) {
             cancel();
         }
-
         mLastMatch = match;
-
-        View view = mViewRef.get();
-        if (match != null && view != null && view.getVisibility() == View.VISIBLE ) {
+        if (match != null) {
             start(match);
         }
     }

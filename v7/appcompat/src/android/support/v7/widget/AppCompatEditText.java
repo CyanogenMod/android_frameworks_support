@@ -24,6 +24,8 @@ import android.support.annotation.DrawableRes;
 import android.support.annotation.Nullable;
 import android.support.v4.view.TintableBackgroundView;
 import android.support.v7.appcompat.R;
+import android.support.v7.internal.widget.TintContextWrapper;
+import android.support.v7.internal.widget.TintManager;
 import android.util.AttributeSet;
 import android.widget.EditText;
 
@@ -44,7 +46,7 @@ import android.widget.EditText;
  */
 public class AppCompatEditText extends EditText implements TintableBackgroundView {
 
-    private AppCompatDrawableManager mDrawableManager;
+    private TintManager mTintManager;
     private AppCompatBackgroundHelper mBackgroundTintHelper;
     private AppCompatTextHelper mTextHelper;
 
@@ -59,13 +61,12 @@ public class AppCompatEditText extends EditText implements TintableBackgroundVie
     public AppCompatEditText(Context context, AttributeSet attrs, int defStyleAttr) {
         super(TintContextWrapper.wrap(context), attrs, defStyleAttr);
 
-        mDrawableManager = AppCompatDrawableManager.get();
-        mBackgroundTintHelper = new AppCompatBackgroundHelper(this, mDrawableManager);
+        mTintManager = TintManager.get(getContext());
+        mBackgroundTintHelper = new AppCompatBackgroundHelper(this, mTintManager);
         mBackgroundTintHelper.loadFromAttributes(attrs, defStyleAttr);
 
-        mTextHelper = AppCompatTextHelper.create(this);
+        mTextHelper = new AppCompatTextHelper(this);
         mTextHelper.loadFromAttributes(attrs, defStyleAttr);
-        mTextHelper.applyCompoundDrawablesTints();
     }
 
     @Override
@@ -141,9 +142,6 @@ public class AppCompatEditText extends EditText implements TintableBackgroundVie
         super.drawableStateChanged();
         if (mBackgroundTintHelper != null) {
             mBackgroundTintHelper.applySupportBackgroundTint();
-        }
-        if (mTextHelper != null) {
-            mTextHelper.applyCompoundDrawablesTints();
         }
     }
 

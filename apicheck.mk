@@ -20,7 +20,6 @@
 # $(support_module_java_libraries) - dependent libraries
 # $(support_module_java_packages) - list of package names containing public classes
 # $(support_module_src_files) - list of source files
-# $(support_module_aidl_includes) - list of aidl files
 # $(api_check_current_msg_file) - file containing error message for current API check
 # $(api_check_last_msg_file) - file containing error message for last SDK API check
 # ---------------------------------------------
@@ -40,7 +39,6 @@ LOCAL_MODULE_CLASS := JAVA_LIBRARIES
 LOCAL_MODULE_TAGS := optional
 
 LOCAL_SRC_FILES := $(support_module_src_files)
-LOCAL_AIDL_INCLUDES := $(support_module_aidl_includes)
 LOCAL_JAVA_LIBRARIES := $(support_module_java_libraries)
 LOCAL_ADDITIONAL_JAVA_DIR := \
     $(call intermediates-dir-for,$(LOCAL_MODULE_CLASS),$(support_module),,COMMON)/src
@@ -119,7 +117,6 @@ update-support-api: update-$(support_module)-api
 support_module :=
 support_module_api_dir :=
 support_module_src_files :=
-support_module_aidl_includes :=
 support_module_java_libraries :=
 support_module_java_packages :=
 support_module_api_file :=

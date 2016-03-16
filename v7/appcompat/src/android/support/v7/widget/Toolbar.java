@@ -17,6 +17,9 @@
 package android.support.v7.widget;
 
 import android.content.Context;
+import android.content.res.ColorStateList;
+import android.content.res.TypedArray;
+import android.graphics.PorterDuff;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.os.Parcel;
@@ -35,13 +38,21 @@ import android.support.v4.view.MotionEventCompat;
 import android.support.v4.view.ViewCompat;
 import android.support.v7.app.ActionBar;
 import android.support.v7.appcompat.R;
+import android.support.v7.graphics.drawable.DrawableUtils;
+import android.support.v7.internal.view.SupportMenuInflater;
+import android.support.v7.internal.view.menu.MenuBuilder;
+import android.support.v7.internal.view.menu.MenuItemImpl;
+import android.support.v7.internal.view.menu.MenuPresenter;
+import android.support.v7.internal.view.menu.MenuView;
+import android.support.v7.internal.view.menu.SubMenuBuilder;
+import android.support.v7.internal.widget.DecorToolbar;
+import android.support.v7.internal.widget.RtlSpacingHelper;
+import android.support.v7.internal.widget.TintInfo;
+import android.support.v7.internal.widget.TintManager;
+import android.support.v7.internal.widget.TintTypedArray;
+import android.support.v7.internal.widget.ToolbarWidgetWrapper;
+import android.support.v7.internal.widget.ViewUtils;
 import android.support.v7.view.CollapsibleActionView;
-import android.support.v7.view.SupportMenuInflater;
-import android.support.v7.view.menu.MenuBuilder;
-import android.support.v7.view.menu.MenuItemImpl;
-import android.support.v7.view.menu.MenuPresenter;
-import android.support.v7.view.menu.MenuView;
-import android.support.v7.view.menu.SubMenuBuilder;
 import android.text.Layout;
 import android.text.TextUtils;
 import android.util.AttributeSet;
@@ -186,7 +197,7 @@ public class Toolbar extends ViewGroup {
         }
     };
 
-    private final AppCompatDrawableManager mDrawableManager;
+    private final TintManager mTintManager;
 
     public Toolbar(Context context) {
         this(context, null);
@@ -295,7 +306,8 @@ public class Toolbar extends ViewGroup {
         }
         a.recycle();
 
-        mDrawableManager = AppCompatDrawableManager.get();
+        // Keep the TintManager in case we need it later
+        mTintManager = a.getTintManager();
     }
 
     /**
@@ -342,7 +354,7 @@ public class Toolbar extends ViewGroup {
      * @param resId ID of a drawable resource
      */
     public void setLogo(@DrawableRes int resId) {
-        setLogo(mDrawableManager.getDrawable(getContext(), resId));
+        setLogo(mTintManager.getDrawable(resId));
     }
 
     /** @hide */
@@ -769,7 +781,7 @@ public class Toolbar extends ViewGroup {
      * @param resId Resource ID of a drawable to set
      */
     public void setNavigationIcon(@DrawableRes int resId) {
-        setNavigationIcon(mDrawableManager.getDrawable(getContext(), resId));
+        setNavigationIcon(mTintManager.getDrawable(resId));
     }
 
     /**

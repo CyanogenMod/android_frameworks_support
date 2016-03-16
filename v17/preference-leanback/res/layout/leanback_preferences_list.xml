@@ -19,5 +19,4 @@
     android:id="@+id/list"
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    style="?attr/preferenceFragmentListStyle" />
+    android:layout_height="match_parent" />

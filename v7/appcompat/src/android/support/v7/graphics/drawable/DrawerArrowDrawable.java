@@ -447,13 +447,6 @@ public class DrawerArrowDrawable extends Drawable {
     }
 
     /**
-     * Returns the paint instance used for all drawing.
-     */
-    public final Paint getPaint() {
-        return mPaint;
-    }
-
-    /**
      * Linear interpolate between a and b with parameter t.
      */
     private static float lerp(float a, float b, float t) {

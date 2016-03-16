@@ -427,7 +427,7 @@ public class BrowseSupportFragment extends BaseSupportFragment {
                 if (mBrowseTransitionListener != null) {
                     mBrowseTransitionListener.onHeadersTransitionStart(withHeaders);
                 }
-                TransitionHelper.runTransition(withHeaders ? mSceneWithHeaders : mSceneWithoutHeaders,
+                sTransitionHelper.runTransition(withHeaders ? mSceneWithHeaders : mSceneWithoutHeaders,
                         mHeadersTransition);
                 if (mHeadersBackStackEnabled) {
                     if (!withHeaders) {
@@ -624,19 +624,19 @@ public class BrowseSupportFragment extends BaseSupportFragment {
             mHeadersSupportFragment.setBackgroundColor(mBrandColor);
         }
 
-        mSceneWithHeaders = TransitionHelper.createScene(mBrowseFrame, new Runnable() {
+        mSceneWithHeaders = sTransitionHelper.createScene(mBrowseFrame, new Runnable() {
             @Override
             public void run() {
                 showHeaders(true);
             }
         });
-        mSceneWithoutHeaders =  TransitionHelper.createScene(mBrowseFrame, new Runnable() {
+        mSceneWithoutHeaders =  sTransitionHelper.createScene(mBrowseFrame, new Runnable() {
             @Override
             public void run() {
                 showHeaders(false);
             }
         });
-        mSceneAfterEntranceTransition = TransitionHelper.createScene(mBrowseFrame, new Runnable() {
+        mSceneAfterEntranceTransition = sTransitionHelper.createScene(mBrowseFrame, new Runnable() {
             @Override
             public void run() {
                 setEntranceTransitionEndState();
@@ -646,11 +646,11 @@ public class BrowseSupportFragment extends BaseSupportFragment {
     }
 
     private void createHeadersTransition() {
-        mHeadersTransition = TransitionHelper.loadTransition(getActivity(),
+        mHeadersTransition = sTransitionHelper.loadTransition(getActivity(),
                 mShowingHeaders ?
                 R.transition.lb_browse_headers_in : R.transition.lb_browse_headers_out);
 
-        TransitionHelper.addTransitionListener(mHeadersTransition, new TransitionListener() {
+        sTransitionHelper.setTransitionListener(mHeadersTransition, new TransitionListener() {
             @Override
             public void onTransitionStart(Object transition) {
             }
@@ -893,13 +893,14 @@ public class BrowseSupportFragment extends BaseSupportFragment {
 
     @Override
     protected Object createEntranceTransition() {
-        return TransitionHelper.loadTransition(getActivity(),
+        return sTransitionHelper.loadTransition(getActivity(),
                 R.transition.lb_browse_entrance_transition);
     }
 
     @Override
     protected void runEntranceTransition(Object entranceTransition) {
-        TransitionHelper.runTransition(mSceneAfterEntranceTransition, entranceTransition);
+        sTransitionHelper.runTransition(mSceneAfterEntranceTransition,
+                entranceTransition);
     }
 
     @Override

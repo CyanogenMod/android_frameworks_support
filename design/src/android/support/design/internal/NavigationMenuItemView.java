@@ -25,31 +25,21 @@ import android.graphics.drawable.StateListDrawable;
 import android.support.design.R;
 import android.support.v4.graphics.drawable.DrawableCompat;
 import android.support.v4.widget.TextViewCompat;
-import android.support.v7.view.menu.MenuItemImpl;
-import android.support.v7.view.menu.MenuView;
+import android.support.v7.internal.view.menu.MenuItemImpl;
+import android.support.v7.internal.view.menu.MenuView;
 import android.util.AttributeSet;
 import android.util.TypedValue;
-import android.view.LayoutInflater;
-import android.view.View;
-import android.view.ViewStub;
-import android.widget.CheckedTextView;
-import android.widget.FrameLayout;
+import android.widget.TextView;
 
 /**
  * @hide
  */
-public class NavigationMenuItemView extends ForegroundLinearLayout implements MenuView.ItemView {
+public class NavigationMenuItemView extends TextView implements MenuView.ItemView {
 
     private static final int[] CHECKED_STATE_SET = {android.R.attr.state_checked};
 
-    private final int mIconSize;
-
-    private final CheckedTextView mTextView;
-
-    private FrameLayout mActionArea;
-
+    private int mIconSize;
     private MenuItemImpl mItemData;
-
     private ColorStateList mIconTintList;
 
     public NavigationMenuItemView(Context context) {
@@ -62,12 +52,8 @@ public class NavigationMenuItemView extends ForegroundLinearLayout implements Me
 
     public NavigationMenuItemView(Context context, AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
-        setOrientation(HORIZONTAL);
-        LayoutInflater.from(context).inflate(R.layout.design_navigation_menu_item, this, true);
         mIconSize = context.getResources().getDimensionPixelSize(
                 R.dimen.design_navigation_icon_size);
-        mTextView = (CheckedTextView) findViewById(R.id.design_menu_item_text);
-        mTextView.setDuplicateParentStateEnabled(true);
     }
 
     @Override
@@ -85,25 +71,6 @@ public class NavigationMenuItemView extends ForegroundLinearLayout implements Me
         setEnabled(itemData.isEnabled());
         setTitle(itemData.getTitle());
         setIcon(itemData.getIcon());
-        setActionView(itemData.getActionView());
-    }
-
-    public void recycle() {
-        if (mActionArea != null) {
-            mActionArea.removeAllViews();
-        }
-        mTextView.setCompoundDrawables(null, null, null, null);
-    }
-
-    private void setActionView(View actionView) {
-        if (mActionArea == null) {
-            mActionArea = (FrameLayout) ((ViewStub) findViewById(
-                    R.id.design_menu_item_action_area_stub)).inflate();
-        }
-        mActionArea.removeAllViews();
-        if (actionView != null) {
-            mActionArea.addView(actionView);
-        }
     }
 
     private StateListDrawable createDefaultBackground() {
@@ -124,7 +91,7 @@ public class NavigationMenuItemView extends ForegroundLinearLayout implements Me
 
     @Override
     public void setTitle(CharSequence title) {
-        mTextView.setText(title);
+        setText(title);
     }
 
     @Override
@@ -135,7 +102,6 @@ public class NavigationMenuItemView extends ForegroundLinearLayout implements Me
     @Override
     public void setChecked(boolean checked) {
         refreshDrawableState();
-        mTextView.setChecked(checked);
     }
 
     @Override
@@ -145,12 +111,11 @@ public class NavigationMenuItemView extends ForegroundLinearLayout implements Me
     @Override
     public void setIcon(Drawable icon) {
         if (icon != null) {
-            Drawable.ConstantState state = icon.getConstantState();
-            icon = DrawableCompat.wrap(state == null ? icon : state.newDrawable()).mutate();
+            icon = DrawableCompat.wrap(icon.getConstantState().newDrawable()).mutate();
             icon.setBounds(0, 0, mIconSize, mIconSize);
             DrawableCompat.setTintList(icon, mIconTintList);
         }
-        TextViewCompat.setCompoundDrawablesRelative(mTextView, icon, null, null, null);
+        TextViewCompat.setCompoundDrawablesRelative(this, icon, null, null, null);
     }
 
     @Override
@@ -179,13 +144,4 @@ public class NavigationMenuItemView extends ForegroundLinearLayout implements Me
             setIcon(mItemData.getIcon());
         }
     }
-
-    public void setTextAppearance(Context context, int textAppearance) {
-        mTextView.setTextAppearance(context, textAppearance);
-    }
-
-    public void setTextColor(ColorStateList colors) {
-        mTextView.setTextColor(colors);
-    }
-
 }

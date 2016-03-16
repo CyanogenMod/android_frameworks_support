@@ -14,7 +14,6 @@
 package android.support.v17.leanback.app;
 
 import android.support.v17.leanback.R;
-import android.support.v17.leanback.transition.TransitionHelper;
 import android.support.v17.leanback.widget.BrowseFrameLayout;
 import android.support.v17.leanback.widget.DetailsOverviewRow;
 import android.support.v17.leanback.widget.FullWidthDetailsOverviewRowPresenter;
@@ -201,7 +200,7 @@ public class DetailsFragment extends BaseFragment {
             }
         }
 
-        mSceneAfterEntranceTransition = TransitionHelper.createScene(
+        mSceneAfterEntranceTransition = sTransitionHelper.createScene(
                 (ViewGroup) view, new Runnable() {
             @Override
             public void run() {
@@ -395,20 +394,25 @@ public class DetailsFragment extends BaseFragment {
         super.onStart();
         setupChildFragmentLayout();
         setupFocusSearchListener();
+        mRowsFragment.getView().requestFocus();
         if (isEntranceTransitionEnabled()) {
+            // make sure recycler view animation is disabled
+            mRowsFragment.onTransitionPrepare();
+            mRowsFragment.onTransitionStart();
             mRowsFragment.setEntranceTransitionState(false);
         }
     }
 
     @Override
     protected Object createEntranceTransition() {
-        return TransitionHelper.loadTransition(getActivity(),
+        return sTransitionHelper.loadTransition(getActivity(),
                 R.transition.lb_details_enter_transition);
     }
 
     @Override
     protected void runEntranceTransition(Object entranceTransition) {
-        TransitionHelper.runTransition(mSceneAfterEntranceTransition, entranceTransition);
+        sTransitionHelper.runTransition(mSceneAfterEntranceTransition,
+                entranceTransition);
     }
 
     @Override
@@ -416,13 +420,4 @@ public class DetailsFragment extends BaseFragment {
         mRowsFragment.onTransitionEnd();
     }
 
-    @Override
-    protected void onEntranceTransitionPrepare() {
-        mRowsFragment.onTransitionPrepare();
-    }
-
-    @Override
-    protected void onEntranceTransitionStart() {
-        mRowsFragment.onTransitionStart();
-    }
 }

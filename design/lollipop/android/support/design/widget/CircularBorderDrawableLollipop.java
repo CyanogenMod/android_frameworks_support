@@ -16,12 +16,53 @@
 
 package android.support.design.widget;
 
+
+import android.content.res.ColorStateList;
+import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.Outline;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffColorFilter;
 
 /**
- * Lollipop version of {@link CircularBorderDrawable}.
+ * Lollipop version of {@link CircularBorderDrawable} which accepts tint calls.
  */
 class CircularBorderDrawableLollipop extends CircularBorderDrawable {
+
+    private ColorStateList mTint;
+    private PorterDuff.Mode mTintMode = PorterDuff.Mode.SRC_IN;
+    private PorterDuffColorFilter mTintFilter;
+
+    @Override
+    public void draw(Canvas canvas) {
+        boolean clearColorFilter;
+        if (mTintFilter != null && mPaint.getColorFilter() == null) {
+            mPaint.setColorFilter(mTintFilter);
+            clearColorFilter = true;
+        } else {
+            clearColorFilter = false;
+        }
+
+        super.draw(canvas);
+
+        if (clearColorFilter) {
+            mPaint.setColorFilter(null);
+        }
+    }
+
+    @Override
+    public void setTintList(ColorStateList tint) {
+        mTint = tint;
+        mTintFilter = updateTintFilter(tint, mTintMode);
+        invalidateSelf();
+    }
+
+    @Override
+    public void setTintMode(PorterDuff.Mode tintMode) {
+        mTintMode = tintMode;
+        mTintFilter = updateTintFilter(mTint, tintMode);
+        invalidateSelf();
+    }
 
     @Override
     public void getOutline(Outline outline) {
@@ -29,4 +70,16 @@ class CircularBorderDrawableLollipop extends CircularBorderDrawable {
         outline.setOval(mRect);
     }
 
+    /**
+     * Ensures the tint filter is consistent with the current tint color and
+     * mode.
+     */
+    private PorterDuffColorFilter updateTintFilter(ColorStateList tint, PorterDuff.Mode tintMode) {
+        if (tint == null || tintMode == null) {
+            return null;
+        }
+
+        final int color = tint.getColorForState(getState(), Color.TRANSPARENT);
+        return new PorterDuffColorFilter(color, tintMode);
+    }
 }

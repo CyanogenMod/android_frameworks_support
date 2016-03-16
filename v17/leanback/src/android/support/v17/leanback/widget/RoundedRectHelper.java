@@ -13,7 +13,8 @@
  */
 package android.support.v17.leanback.widget;
 
-import android.support.v17.leanback.R;
+import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
 import android.os.Build;
 import android.view.View;
 
@@ -23,7 +24,7 @@ import android.view.View;
 final class RoundedRectHelper {
 
     private final static RoundedRectHelper sInstance = new RoundedRectHelper();
-    private final Impl mImpl;
+    private Impl mImpl;
 
     /**
      * Returns an instance of the helper.
@@ -32,27 +33,15 @@ final class RoundedRectHelper {
         return sInstance;
     }
 
-    public static boolean supportsRoundedCorner() {
-        return Build.VERSION.SDK_INT >= 21;
-    }
-
-    /**
-     * Sets or removes a rounded rectangle outline on the given view.
-     */
-    public void setClipToRoundedOutline(View view, boolean clip, int radius) {
-        mImpl.setClipToRoundedOutline(view, clip, radius);
-    }
-
     /**
      * Sets or removes a rounded rectangle outline on the given view.
      */
     public void setClipToRoundedOutline(View view, boolean clip) {
-        mImpl.setClipToRoundedOutline(view, clip, view.getResources().getDimensionPixelSize(
-                R.dimen.lb_rounded_rect_corner_radius));
+        mImpl.setClipToRoundedOutline(view, clip);
     }
 
     static interface Impl {
-        public void setClipToRoundedOutline(View view, boolean clip, int radius);
+        public void setClipToRoundedOutline(View view, boolean clip);
     }
 
     /**
@@ -60,7 +49,7 @@ final class RoundedRectHelper {
      */
     private static final class StubImpl implements Impl {
         @Override
-        public void setClipToRoundedOutline(View view, boolean clip, int radius) {
+        public void setClipToRoundedOutline(View view, boolean clip) {
             // Not supported
         }
     }
@@ -70,13 +59,13 @@ final class RoundedRectHelper {
      */
     private static final class Api21Impl implements Impl {
         @Override
-        public void setClipToRoundedOutline(View view, boolean clip, int radius) {
-            RoundedRectHelperApi21.setClipToRoundedOutline(view, clip, radius);
+        public void setClipToRoundedOutline(View view, boolean clip) {
+            RoundedRectHelperApi21.setClipToRoundedOutline(view, clip);
         }
     }
 
     private RoundedRectHelper() {
-        if (supportsRoundedCorner()) {
+        if (Build.VERSION.SDK_INT >= 21) {
             mImpl = new Api21Impl();
         } else {
             mImpl = new StubImpl();

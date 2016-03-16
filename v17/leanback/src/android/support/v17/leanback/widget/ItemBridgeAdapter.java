@@ -177,15 +177,11 @@ public class ItemBridgeAdapter extends RecyclerView.Adapter implements FacetProv
      * Sets the {@link ObjectAdapter}.
      */
     public void setAdapter(ObjectAdapter adapter) {
-        if (adapter == mAdapter) {
-            return;
-        }
         if (mAdapter != null) {
             mAdapter.unregisterObserver(mDataObserver);
         }
         mAdapter = adapter;
         if (mAdapter == null) {
-            notifyDataSetChanged();
             return;
         }
 
@@ -193,7 +189,6 @@ public class ItemBridgeAdapter extends RecyclerView.Adapter implements FacetProv
         if (hasStableIds() != mAdapter.hasStableIds()) {
             setHasStableIds(mAdapter.hasStableIds());
         }
-        notifyDataSetChanged();
     }
 
     /**
@@ -238,7 +233,7 @@ public class ItemBridgeAdapter extends RecyclerView.Adapter implements FacetProv
 
     @Override
     public int getItemCount() {
-        return mAdapter != null ? mAdapter.size() : 0;
+        return mAdapter.size();
     }
 
     @Override

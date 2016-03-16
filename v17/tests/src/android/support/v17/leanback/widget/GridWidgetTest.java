@@ -21,7 +21,6 @@ import android.text.Selection;
 import android.text.Spannable;
 import android.util.Log;
 import android.util.SparseArray;
-import android.util.SparseIntArray;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
@@ -104,23 +103,6 @@ public class GridWidgetTest extends ActivityInstrumentationTestCase2<GridActivit
             }
         });
         Thread.sleep(500);
-    }
-
-    protected void waitForScrollIdleAndItemAnimation(Runnable verify) throws Throwable {
-        waitForScrollIdle();
-        waitForItemAnimation();
-        verify.run();
-    }
-
-    protected void waitForItemAnimation() throws Throwable {
-        Thread.sleep(100);
-        while (mGridView.getItemAnimator() != null && mGridView.getItemAnimator().isRunning()) {
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException ex) {
-                break;
-            }
-        }
     }
 
     /**
@@ -1179,12 +1161,12 @@ public class GridWidgetTest extends ActivityInstrumentationTestCase2<GridActivit
         initActivity(intent);
 
         mGridView.setSelectedPositionSmooth(0);
-        waitForScrollIdleAndItemAnimation(mVerifyLayout);
+        waitForScrollIdle(mVerifyLayout);
 
         for (int i = 0; i < pressDown; i++) {
             sendKeys(KeyEvent.KEYCODE_DPAD_DOWN);
         }
-        waitForScrollIdleAndItemAnimation(mVerifyLayout);
+        waitForScrollIdle(mVerifyLayout);
         assertFalse(mGridView.isFocused());
 
     }
@@ -1588,40 +1570,6 @@ public class GridWidgetTest extends ActivityInstrumentationTestCase2<GridActivit
                 ((VerticalGridViewEx) mGridView).mSmoothScrollByCalled < 10);
     }
 
-    public void testSmoothscrollerCancelled() throws Throwable {
-        mInstrumentation = getInstrumentation();
-        Intent intent = new Intent(mInstrumentation.getContext(), GridActivity.class);
-        intent.putExtra(GridActivity.EXTRA_LAYOUT_RESOURCE_ID,
-                R.layout.vertical_linear);
-        intent.putExtra(GridActivity.EXTRA_REQUEST_FOCUS_ONLAYOUT, true);
-        int[] items = new int[100];
-        for (int i = 0; i < items.length; i++) {
-            items[i] = 680;
-        }
-        intent.putExtra(GridActivity.EXTRA_ITEMS, items);
-        intent.putExtra(GridActivity.EXTRA_STAGGERED, false);
-        mOrientation = BaseGridView.VERTICAL;
-        mNumRows = 1;
-
-        initActivity(intent);
-
-        mGridView.setSelectedPositionSmooth(0);
-        waitForScrollIdle(mVerifyLayout);
-        assertTrue(mGridView.getChildAt(0).hasFocus());
-
-        int targetPosition = items.length - 1;
-        mGridView.setSelectedPositionSmooth(targetPosition);
-        runTestOnUiThread(new Runnable() {
-            public void run() {
-                mGridView.stopScroll();
-            }
-        });
-        Thread.sleep(100);
-        assertEquals(mGridView.getSelectedPosition(), targetPosition);
-        assertSame(mGridView.getLayoutManager().findViewByPosition(targetPosition),
-                mGridView.findFocus());
-    }
-
     public void testSetNumRowsAndAddItem() throws Throwable {
         mInstrumentation = getInstrumentation();
         Intent intent = new Intent(mInstrumentation.getContext(), GridActivity.class);
@@ -1708,7 +1656,7 @@ public class GridWidgetTest extends ActivityInstrumentationTestCase2<GridActivit
                 mGridView.setSelectedPositionSmooth(0);
             }
         });
-        waitForScrollIdleAndItemAnimation(mVerifyLayout);
+        waitForScrollIdle(mVerifyLayout);
         verifyMargin();
 
         runTestOnUiThread(new Runnable() {
@@ -1716,7 +1664,7 @@ public class GridWidgetTest extends ActivityInstrumentationTestCase2<GridActivit
                 mGridView.setSelectedPositionSmooth(1);
             }
         });
-        waitForScrollIdleAndItemAnimation(mVerifyLayout);
+        waitForScrollIdle(mVerifyLayout);
         verifyMargin();
     }
 
@@ -1787,7 +1735,7 @@ public class GridWidgetTest extends ActivityInstrumentationTestCase2<GridActivit
                 mGridView.setSelectedPositionSmooth(1);
             }
         });
-        waitForScrollIdleAndItemAnimation(mVerifyLayout);
+        waitForScrollIdle(mVerifyLayout);
         assertEquals(((TextView) mGridView.getChildAt(0)).getSelectionStart(), 1);
         assertEquals(((TextView) mGridView.getChildAt(0)).getSelectionEnd(), 2);
         assertEquals(((TextView) mGridView.getChildAt(1)).getSelectionStart(), 1);
@@ -1805,7 +1753,7 @@ public class GridWidgetTest extends ActivityInstrumentationTestCase2<GridActivit
                 mGridView.setSelectedPositionSmooth(0);
             }
         });
-        waitForScrollIdleAndItemAnimation(mVerifyLayout);
+        waitForScrollIdle(mVerifyLayout);
         assertEquals(((TextView) mGridView.getChildAt(0)).getSelectionStart(), 1);
         assertEquals(((TextView) mGridView.getChildAt(0)).getSelectionEnd(), 2);
         assertEquals(((TextView) mGridView.getChildAt(1)).getSelectionStart(), 1);
@@ -1884,20 +1832,6 @@ public class GridWidgetTest extends ActivityInstrumentationTestCase2<GridActivit
             } else {
                 return VIEW_TYPE_DEFAULT;
             }
-        }
-    }
-
-    static class ChangeableViewTypesProvider implements ViewTypeProvider {
-        static SparseIntArray sViewTypes = new SparseIntArray();
-        @Override
-        public int getViewType(int position) {
-            return sViewTypes.get(position);
-        }
-        public static void clear() {
-            sViewTypes.clear();
-        }
-        public static void setViewType(int position, int type) {
-            sViewTypes.put(position, type);
         }
     }
 
@@ -2114,38 +2048,6 @@ public class GridWidgetTest extends ActivityInstrumentationTestCase2<GridActivit
         });
         waitForTransientStateGone(null);
         assertEquals(0, mGridView.getSelectedPosition());
-    }
-
-    public void testNotifyItemTypeChangedSelectionEvent() throws Throwable {
-        mInstrumentation = getInstrumentation();
-        Intent intent = new Intent(mInstrumentation.getContext(), GridActivity.class);
-        intent.putExtra(GridActivity.EXTRA_LAYOUT_RESOURCE_ID,
-                R.layout.vertical_linear);
-        intent.putExtra(GridActivity.EXTRA_NUM_ITEMS, 10);
-        intent.putExtra(GridActivity.EXTRA_VIEWTYPEPROVIDER_CLASS,
-                ChangeableViewTypesProvider.class.getName());
-        ChangeableViewTypesProvider.clear();
-        initActivity(intent);
-        mOrientation = BaseGridView.HORIZONTAL;
-        mNumRows = 1;
-
-        final ArrayList<Integer> selectedLog = new ArrayList<Integer>();
-        mGridView.setOnChildSelectedListener(new OnChildSelectedListener() {
-            public void onChildSelected(ViewGroup parent, View view, int position, long id) {
-                selectedLog.add(position);
-            }
-        });
-
-        runTestOnUiThread(new Runnable() {
-            public void run() {
-                ChangeableViewTypesProvider.setViewType(0, 1);
-                mGridView.getAdapter().notifyItemChanged(0, 1);
-            }
-        });
-        waitForTransientStateGone(null);
-        assertEquals(0, mGridView.getSelectedPosition());
-        assertEquals(selectedLog.size(), 1);
-        assertEquals((int) selectedLog.get(0), 0);
     }
 
     public void testSelectionSmoothAndAddItemInOneCycle() throws Throwable {

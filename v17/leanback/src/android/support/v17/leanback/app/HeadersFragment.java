@@ -138,10 +138,8 @@ public class HeadersFragment extends BaseRowFragment {
         if (getBridgeAdapter() != null) {
             FocusHighlightHelper.setupHeaderItemFocusHighlight(listView);
         }
-        if (mBackgroundColorSet) {
-            view.setBackgroundColor(mBackgroundColor);
-            updateFadingEdgeToBrandColor(mBackgroundColor);
-        }
+        view.setBackgroundColor(getBackgroundColor());
+        updateFadingEdgeToBrandColor(getBackgroundColor());
         updateListViewVisibility();
     }
 
@@ -228,6 +226,22 @@ public class HeadersFragment extends BaseRowFragment {
             ((GradientDrawable) background).setColors(
                     new int[] {Color.TRANSPARENT, backgroundColor});
         }
+    }
+
+    int getBackgroundColor() {
+        if (getActivity() == null) {
+            throw new IllegalStateException("Activity must be attached");
+        }
+
+        if (mBackgroundColorSet) {
+            return mBackgroundColor;
+        }
+
+        TypedValue outValue = new TypedValue();
+        if (getActivity().getTheme().resolveAttribute(R.attr.defaultBrandColor, outValue, true)) {
+            return getResources().getColor(outValue.resourceId);
+        }
+        return getResources().getColor(R.color.lb_default_brand_color);
     }
 
     @Override

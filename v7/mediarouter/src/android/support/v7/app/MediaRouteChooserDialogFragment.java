@@ -18,7 +18,6 @@ package android.support.v7.app;
 
 import android.app.Dialog;
 import android.content.Context;
-import android.content.res.Configuration;
 import android.os.Bundle;
 import android.support.v4.app.DialogFragment;
 import android.support.v7.media.MediaRouteSelector;
@@ -33,7 +32,6 @@ import android.support.v7.media.MediaRouteSelector;
 public class MediaRouteChooserDialogFragment extends DialogFragment {
     private final String ARGUMENT_SELECTOR = "selector";
 
-    private MediaRouteChooserDialog mDialog;
     private MediaRouteSelector mSelector;
 
     /**
@@ -110,16 +108,8 @@ public class MediaRouteChooserDialogFragment extends DialogFragment {
 
     @Override
     public Dialog onCreateDialog(Bundle savedInstanceState) {
-        mDialog = onCreateChooserDialog(getActivity(), savedInstanceState);
-        mDialog.setRouteSelector(getRouteSelector());
-        return mDialog;
-    }
-
-    @Override
-    public void onConfigurationChanged(Configuration newConfig) {
-        super.onConfigurationChanged(newConfig);
-        if (mDialog != null) {
-            mDialog.updateLayout();
-        }
+        MediaRouteChooserDialog dialog = onCreateChooserDialog(getActivity(), savedInstanceState);
+        dialog.setRouteSelector(getRouteSelector());
+        return dialog;
     }
 }

@@ -19,7 +19,7 @@ package android.support.v4.animation;
 import android.view.View;
 
 /**
- * Compatibility implementation for {@code android.animation.ValueAnimator}.
+ * Compatibility implementation for {@link android.animation.Animator}.
  *
  * @hide
  */

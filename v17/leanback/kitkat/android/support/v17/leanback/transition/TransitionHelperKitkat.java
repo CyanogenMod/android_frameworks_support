@@ -185,12 +185,9 @@ final class TransitionHelperKitkat {
         ((Transition) transition).addTarget(targetView);
     }
 
-    static void addTransitionListener(Object transition, final TransitionListener listener) {
-        if (listener == null) {
-            return;
-        }
+    static void setTransitionListener(Object transition, final TransitionListener listener) {
         Transition t = (Transition) transition;
-        listener.mImpl = new Transition.TransitionListener() {
+        t.addListener(new Transition.TransitionListener() {
 
             @Override
             public void onTransitionStart(Transition transition) {
@@ -199,12 +196,10 @@ final class TransitionHelperKitkat {
 
             @Override
             public void onTransitionResume(Transition transition) {
-                listener.onTransitionResume(transition);
             }
 
             @Override
             public void onTransitionPause(Transition transition) {
-                listener.onTransitionPause(transition);
             }
 
             @Override
@@ -214,19 +209,8 @@ final class TransitionHelperKitkat {
 
             @Override
             public void onTransitionCancel(Transition transition) {
-                listener.onTransitionCancel(transition);
             }
-        };
-        t.addListener((Transition.TransitionListener) listener.mImpl);
-    }
-
-    static void removeTransitionListener(Object transition, final TransitionListener listener) {
-        if (listener == null || listener.mImpl == null) {
-            return;
-        }
-        Transition t = (Transition) transition;
-        t.removeListener((Transition.TransitionListener) listener.mImpl);
-        listener.mImpl = null;
+        });
     }
 
     static void runTransition(Object scene, Object transition) {

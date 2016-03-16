@@ -6,5 +6,3 @@
 project.properties
 **/bin
 **/gen
-*.iml
-**/out

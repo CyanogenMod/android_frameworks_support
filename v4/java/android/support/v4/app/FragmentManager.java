@@ -52,7 +52,6 @@ import android.view.ViewGroup;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
-import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -415,9 +414,8 @@ final class FragmentManagerImpl extends FragmentManager implements LayoutInflate
 
 
     static class AnimateOnHWLayerIfNeededListener implements AnimationListener {
-        private AnimationListener mOrignalListener = null;
         private boolean mShouldRunOnHWLayer = false;
-        private View mView = null;
+        private View mView;
         public AnimateOnHWLayerIfNeededListener(final View v, Animation anim) {
             if (v == null || anim == null) {
                 return;
@@ -425,38 +423,24 @@ final class FragmentManagerImpl extends FragmentManager implements LayoutInflate
             mView = v;
         }
 
-        public AnimateOnHWLayerIfNeededListener(final View v, Animation anim,
-                AnimationListener listener) {
-            if (v == null || anim == null) {
-                return;
-            }
-            mOrignalListener = listener;
-            mView = v;
-        }
-
         @Override
         @CallSuper
         public void onAnimationStart(Animation animation) {
-            if (mView != null) {
-                mShouldRunOnHWLayer = shouldRunOnHWLayer(mView, animation);
-                if (mShouldRunOnHWLayer) {
-                    mView.post(new Runnable() {
-                        @Override
-                        public void run() {
-                            ViewCompat.setLayerType(mView, ViewCompat.LAYER_TYPE_HARDWARE, null);
-                        }
-                    });
-                }
-            }
-            if (mOrignalListener != null) {
-                mOrignalListener.onAnimationStart(animation);
+            mShouldRunOnHWLayer = shouldRunOnHWLayer(mView, animation);
+            if (mShouldRunOnHWLayer) {
+                mView.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        ViewCompat.setLayerType(mView, ViewCompat.LAYER_TYPE_HARDWARE, null);
+                    }
+                });
             }
         }
 
         @Override
         @CallSuper
         public void onAnimationEnd(Animation animation) {
-            if (mView != null && mShouldRunOnHWLayer) {
+            if (mShouldRunOnHWLayer) {
                 mView.post(new Runnable() {
                     @Override
                     public void run() {
@@ -464,16 +448,10 @@ final class FragmentManagerImpl extends FragmentManager implements LayoutInflate
                     }
                 });
             }
-            if (mOrignalListener != null) {
-                mOrignalListener.onAnimationEnd(animation);
-            }
         }
 
         @Override
         public void onAnimationRepeat(Animation animation) {
-            if (mOrignalListener != null) {
-                mOrignalListener.onAnimationRepeat(animation);
-            }
         }
     }
 
@@ -498,8 +476,6 @@ final class FragmentManagerImpl extends FragmentManager implements LayoutInflate
     FragmentController mController;
     FragmentContainer mContainer;
     Fragment mParent;
-
-    static Field sAnimationListenerField = null;
     
     boolean mNeedMenuInvalidate;
     boolean mStateSaved;
@@ -533,8 +509,7 @@ final class FragmentManagerImpl extends FragmentManager implements LayoutInflate
     }
 
     static boolean shouldRunOnHWLayer(View v, Animation anim) {
-        return Build.VERSION.SDK_INT >= 19
-                && ViewCompat.getLayerType(v) == ViewCompat.LAYER_TYPE_NONE
+        return ViewCompat.getLayerType(v) == ViewCompat.LAYER_TYPE_NONE
                 && ViewCompat.hasOverlappingRendering(v)
                 && modifiesAlpha(anim);
     }
@@ -939,23 +914,7 @@ final class FragmentManagerImpl extends FragmentManager implements LayoutInflate
             return;
         }
         if (shouldRunOnHWLayer(v, anim)) {
-            AnimationListener originalListener = null;
-            try {
-                if (sAnimationListenerField == null) {
-                    sAnimationListenerField = Animation.class.getDeclaredField("mListener");
-                    sAnimationListenerField.setAccessible(true);
-                }
-                originalListener = (AnimationListener) sAnimationListenerField.get(anim);
-            } catch (NoSuchFieldException e) {
-                Log.e(TAG, "No field with the name mListener is found in Animation class", e);
-            } catch (IllegalAccessException e) {
-                Log.e(TAG, "Cannot access Animation's mListener field", e);
-            }
-            // If there's already a listener set on the animation, we need wrap the new listener
-            // around the existing listener, so that they will both get animation listener
-            // callbacks.
-            anim.setAnimationListener(new AnimateOnHWLayerIfNeededListener(v, anim,
-                    originalListener));
+            anim.setAnimationListener(new AnimateOnHWLayerIfNeededListener(v, anim));
         }
     }
 

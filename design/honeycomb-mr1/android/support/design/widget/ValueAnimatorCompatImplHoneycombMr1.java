@@ -113,9 +113,4 @@ class ValueAnimatorCompatImplHoneycombMr1 extends ValueAnimatorCompat.Impl {
     public void end() {
         mValueAnimator.end();
     }
-
-    @Override
-    public long getDuration() {
-        return mValueAnimator.getDuration();
-    }
 }

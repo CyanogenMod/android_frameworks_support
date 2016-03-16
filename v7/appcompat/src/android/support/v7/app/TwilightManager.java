@@ -79,27 +79,31 @@ class TwilightManager {
     }
 
     private Location getLastKnownLocation() {
-        Location coarseLoc = null;
-        Location fineLoc = null;
+        Location coarseLocation = null;
+        Location fineLocation = null;
 
         int permission = PermissionChecker.checkSelfPermission(mContext,
-                Manifest.permission.ACCESS_COARSE_LOCATION);
+                Manifest.permission.ACCESS_FINE_LOCATION);
         if (permission == PermissionChecker.PERMISSION_GRANTED) {
-            coarseLoc = getLastKnownLocationForProvider(LocationManager.NETWORK_PROVIDER);
+            coarseLocation = getLastKnownLocationForProvider(LocationManager.NETWORK_PROVIDER);
         }
 
         permission = PermissionChecker.checkSelfPermission(mContext,
-                Manifest.permission.ACCESS_FINE_LOCATION);
+                Manifest.permission.ACCESS_COARSE_LOCATION);
         if (permission == PermissionChecker.PERMISSION_GRANTED) {
-            fineLoc = getLastKnownLocationForProvider(LocationManager.GPS_PROVIDER);
+            fineLocation = getLastKnownLocationForProvider(LocationManager.GPS_PROVIDER);
         }
 
-        if (fineLoc != null && coarseLoc != null) {
+        if (coarseLocation != null && fineLocation != null) {
             // If we have both a fine and coarse location, use the latest
-            return fineLoc.getTime() > coarseLoc.getTime() ? fineLoc : coarseLoc;
+            if (fineLocation.getTime() > coarseLocation.getTime()) {
+                return fineLocation;
+            } else {
+                return coarseLocation;
+            }
         } else {
             // Else, return the non-null one (if there is one)
-            return fineLoc != null ? fineLoc : coarseLoc;
+            return fineLocation != null ? fineLocation : coarseLocation;
         }
     }
 

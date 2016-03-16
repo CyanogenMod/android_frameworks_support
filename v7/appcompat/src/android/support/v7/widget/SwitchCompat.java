@@ -32,7 +32,11 @@ import android.support.v4.graphics.drawable.DrawableCompat;
 import android.support.v4.view.MotionEventCompat;
 import android.support.v4.view.ViewCompat;
 import android.support.v7.appcompat.R;
-import android.support.v7.text.AllCapsTransformationMethod;
+import android.support.v7.internal.text.AllCapsTransformationMethod;
+import android.support.v7.internal.widget.DrawableUtils;
+import android.support.v7.internal.widget.TintManager;
+import android.support.v7.internal.widget.TintTypedArray;
+import android.support.v7.internal.widget.ViewUtils;
 import android.text.Layout;
 import android.text.StaticLayout;
 import android.text.TextPaint;
@@ -141,7 +145,7 @@ public class SwitchCompat extends CompoundButton {
     @SuppressWarnings("hiding")
     private final Rect mTempRect = new Rect();
 
-    private final AppCompatDrawableManager mDrawableManager;
+    private final TintManager mTintManager;
 
     private static final int[] CHECKED_STATE_SET = {
             android.R.attr.state_checked
@@ -212,7 +216,7 @@ public class SwitchCompat extends CompoundButton {
             setSwitchTextAppearance(context, appearance);
         }
 
-        mDrawableManager = AppCompatDrawableManager.get();
+        mTintManager = a.getTintManager();
 
         a.recycle();
 
@@ -404,7 +408,7 @@ public class SwitchCompat extends CompoundButton {
      * @param resId Resource ID of a track drawable
      */
     public void setTrackResource(int resId) {
-        setTrackDrawable(mDrawableManager.getDrawable(getContext(), resId));
+        setTrackDrawable(mTintManager.getDrawable(resId));
     }
 
     /**
@@ -434,7 +438,7 @@ public class SwitchCompat extends CompoundButton {
      * @param resId Resource ID of a thumb drawable
      */
     public void setThumbResource(int resId) {
-        setThumbDrawable(mDrawableManager.getDrawable(getContext(), resId));
+        setThumbDrawable(mTintManager.getDrawable(resId));
     }
 
     /**
@@ -738,36 +742,14 @@ public class SwitchCompat extends CompoundButton {
 
         if (newState != oldState) {
             playSoundEffect(SoundEffectConstants.CLICK);
+            setChecked(newState);
         }
-        // Always call setChecked so that the thumb is moved back to the correct edge
-        setChecked(newState);
         cancelSuperTouch(ev);
     }
 
-    private void animateThumbToCheckedState(final boolean newCheckedState) {
-        if (mPositionAnimator != null) {
-            // If there's a current animator running, cancel it
-            cancelPositionAnimator();
-        }
-
-        mPositionAnimator = new ThumbAnimation(mThumbPosition, newCheckedState ? 1f : 0f);
+    private void animateThumbToCheckedState(boolean newCheckedState) {
+        mPositionAnimator = new ThumbAnimation(mThumbPosition, newCheckedState ? 1 : 0);
         mPositionAnimator.setDuration(THUMB_ANIMATION_DURATION);
-        mPositionAnimator.setAnimationListener(new Animation.AnimationListener() {
-            @Override
-            public void onAnimationStart(Animation animation) {}
-
-            @Override
-            public void onAnimationEnd(Animation animation) {
-                if (mPositionAnimator == animation) {
-                    // If we're still the active animation, ensure the final position
-                    setThumbPosition(newCheckedState ? 1f : 0f);
-                    mPositionAnimator = null;
-                }
-            }
-
-            @Override
-            public void onAnimationRepeat(Animation animation) {}
-        });
         startAnimation(mPositionAnimator);
     }
 
@@ -805,7 +787,7 @@ public class SwitchCompat extends CompoundButton {
         // recursively with a different value, so load the REAL value...
         checked = isChecked();
 
-        if (getWindowToken() != null && ViewCompat.isLaidOut(this) && isShown()) {
+        if (getWindowToken() != null && ViewCompat.isLaidOut(this)) {
             animateThumbToCheckedState(checked);
         } else {
             // Immediately move the thumb to the new position.
@@ -899,7 +881,7 @@ public class SwitchCompat extends CompoundButton {
             int trackTop = switchTop;
             int trackRight = switchRight;
             int trackBottom = switchBottom;
-            if (thumbInsets != null) {
+            if (thumbInsets != null && !thumbInsets.isEmpty()) {
                 if (thumbInsets.left > padding.left) {
                     trackLeft += thumbInsets.left - padding.left;
                 }
@@ -1118,7 +1100,12 @@ public class SwitchCompat extends CompoundButton {
                 mTrackDrawable.jumpToCurrentState();
             }
 
-            cancelPositionAnimator();
+            if (mPositionAnimator != null && !mPositionAnimator.hasEnded()) {
+                clearAnimation();
+                // Manually set our thumb position to the end state
+                setThumbPosition(mPositionAnimator.mEndPosition);
+                mPositionAnimator = null;
+            }
         }
     }
 

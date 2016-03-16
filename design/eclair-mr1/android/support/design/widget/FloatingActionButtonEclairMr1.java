@@ -23,9 +23,7 @@ import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.LayerDrawable;
-import android.support.annotation.Nullable;
 import android.support.design.R;
-import android.support.design.widget.AnimationUtils.AnimationListenerAdapter;
 import android.support.v4.graphics.drawable.DrawableCompat;
 import android.view.View;
 import android.view.animation.Animation;
@@ -33,14 +31,21 @@ import android.view.animation.Transformation;
 
 class FloatingActionButtonEclairMr1 extends FloatingActionButtonImpl {
 
+    private Drawable mShapeDrawable;
+    private Drawable mRippleDrawable;
+    private Drawable mBorderDrawable;
+
+    private float mElevation;
+    private float mPressedTranslationZ;
     private int mAnimationDuration;
+
     private StateListAnimator mStateListAnimator;
-    private boolean mIsHiding;
 
     ShadowDrawableWrapper mShadowDrawable;
 
-    FloatingActionButtonEclairMr1(VisibilityAwareImageButton view,
-            ShadowViewDelegate shadowViewDelegate) {
+    private boolean mIsHiding;
+
+    FloatingActionButtonEclairMr1(View view, ShadowViewDelegate shadowViewDelegate) {
         super(view, shadowViewDelegate);
 
         mAnimationDuration = view.getResources().getInteger(android.R.integer.config_shortAnimTime);
@@ -59,18 +64,23 @@ class FloatingActionButtonEclairMr1 extends FloatingActionButtonImpl {
     }
 
     @Override
-    void setBackgroundDrawable(ColorStateList backgroundTint,
+    void setBackgroundDrawable(Drawable originalBackground, ColorStateList backgroundTint,
             PorterDuff.Mode backgroundTintMode, int rippleColor, int borderWidth) {
         // Now we need to tint the original background with the tint, using
         // an InsetDrawable if we have a border width
-        mShapeDrawable = DrawableCompat.wrap(createShapeDrawable());
+        mShapeDrawable = DrawableCompat.wrap(originalBackground.mutate());
         DrawableCompat.setTintList(mShapeDrawable, backgroundTint);
         if (backgroundTintMode != null) {
             DrawableCompat.setTintMode(mShapeDrawable, backgroundTintMode);
         }
 
         // Now we created a mask Drawable which will be used for touch feedback.
-        GradientDrawable touchFeedbackShape = createShapeDrawable();
+        // As we don't know the actual outline of mShapeDrawable, we'll just guess that it's a
+        // circle
+        GradientDrawable touchFeedbackShape = new GradientDrawable();
+        touchFeedbackShape.setShape(GradientDrawable.OVAL);
+        touchFeedbackShape.setColor(Color.WHITE);
+        touchFeedbackShape.setCornerRadius(mShadowViewDelegate.getRadius());
 
         // We'll now wrap that touch feedback mask drawable with a ColorStateList. We do not need
         // to inset for any border here as LayerDrawable will nest the padding for us
@@ -87,23 +97,24 @@ class FloatingActionButtonEclairMr1 extends FloatingActionButtonImpl {
             layers = new Drawable[] {mShapeDrawable, mRippleDrawable};
         }
 
-        mContentBackground = new LayerDrawable(layers);
-
         mShadowDrawable = new ShadowDrawableWrapper(
                 mView.getResources(),
-                mContentBackground,
+                new LayerDrawable(layers),
                 mShadowViewDelegate.getRadius(),
                 mElevation,
                 mElevation + mPressedTranslationZ);
         mShadowDrawable.setAddPaddingForCorners(false);
+
         mShadowViewDelegate.setBackgroundDrawable(mShadowDrawable);
+
+        updatePadding();
     }
 
     @Override
     void setBackgroundTintList(ColorStateList tint) {
         DrawableCompat.setTintList(mShapeDrawable, tint);
         if (mBorderDrawable != null) {
-            mBorderDrawable.setBorderTint(tint);
+            DrawableCompat.setTintList(mBorderDrawable, tint);
         }
     }
 
@@ -118,21 +129,18 @@ class FloatingActionButtonEclairMr1 extends FloatingActionButtonImpl {
     }
 
     @Override
-    float getElevation() {
-        return mElevation;
-    }
-
-    @Override
-    void onElevationChanged(float elevation) {
-        if (mShadowDrawable != null) {
+    void setElevation(float elevation) {
+        if (mElevation != elevation && mShadowDrawable != null) {
             mShadowDrawable.setShadowSize(elevation, elevation + mPressedTranslationZ);
+            mElevation = elevation;
             updatePadding();
         }
     }
 
     @Override
-    void onTranslationZChanged(float translationZ) {
-        if (mShadowDrawable != null) {
+    void setPressedTranslationZ(float translationZ) {
+        if (mPressedTranslationZ != translationZ && mShadowDrawable != null) {
+            mPressedTranslationZ = translationZ;
             mShadowDrawable.setMaxShadowSize(mElevation + translationZ);
             updatePadding();
         }
@@ -149,18 +157,15 @@ class FloatingActionButtonEclairMr1 extends FloatingActionButtonImpl {
     }
 
     @Override
-    void hide(@Nullable final InternalVisibilityChangedListener listener, final boolean fromUser) {
+    void hide() {
         if (mIsHiding || mView.getVisibility() != View.VISIBLE) {
             // A hide animation is in progress, or we're already hidden. Skip the call
-            if (listener != null) {
-                listener.onHidden();
-            }
             return;
         }
 
         Animation anim = android.view.animation.AnimationUtils.loadAnimation(
                 mView.getContext(), R.anim.design_fab_out);
-        anim.setInterpolator(AnimationUtils.FAST_OUT_LINEAR_IN_INTERPOLATOR);
+        anim.setInterpolator(AnimationUtils.FAST_OUT_SLOW_IN_INTERPOLATOR);
         anim.setDuration(SHOW_HIDE_ANIM_DURATION);
         anim.setAnimationListener(new AnimationUtils.AnimationListenerAdapter() {
             @Override
@@ -171,49 +176,31 @@ class FloatingActionButtonEclairMr1 extends FloatingActionButtonImpl {
             @Override
             public void onAnimationEnd(Animation animation) {
                 mIsHiding = false;
-                mView.internalSetVisibility(View.GONE, fromUser);
-                if (listener != null) {
-                    listener.onHidden();
-                }
+                mView.setVisibility(View.GONE);
             }
         });
         mView.startAnimation(anim);
     }
 
     @Override
-    void show(@Nullable final InternalVisibilityChangedListener listener, final boolean fromUser) {
+    void show() {
         if (mView.getVisibility() != View.VISIBLE || mIsHiding) {
             // If the view is not visible, or is visible and currently being hidden, run
             // the show animation
             mView.clearAnimation();
-            mView.internalSetVisibility(View.VISIBLE, fromUser);
+            mView.setVisibility(View.VISIBLE);
             Animation anim = android.view.animation.AnimationUtils.loadAnimation(
                     mView.getContext(), R.anim.design_fab_in);
             anim.setDuration(SHOW_HIDE_ANIM_DURATION);
-            anim.setInterpolator(AnimationUtils.LINEAR_OUT_SLOW_IN_INTERPOLATOR);
-            anim.setAnimationListener(new AnimationListenerAdapter() {
-                @Override
-                public void onAnimationEnd(Animation animation) {
-                    if (listener != null) {
-                        listener.onShown();
-                    }
-                }
-            });
+            anim.setInterpolator(AnimationUtils.FAST_OUT_SLOW_IN_INTERPOLATOR);
             mView.startAnimation(anim);
-        } else {
-            if (listener != null) {
-                listener.onShown();
-            }
         }
     }
 
-    @Override
-    void onCompatShadowChanged() {
-        // Ignore pre-v21
-    }
-
-    void getPadding(Rect rect) {
+    private void updatePadding() {
+        Rect rect = new Rect();
         mShadowDrawable.getPadding(rect);
+        mShadowViewDelegate.setShadowPadding(rect.left, rect.top, rect.right, rect.bottom);
     }
 
     private Animation setupAnimation(Animation animation) {

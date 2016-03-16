@@ -25,7 +25,7 @@ import android.media.RemoteControlClient;
 import android.os.Bundle;
 import android.os.ResultReceiver;
 
-class MediaSessionCompatApi14 {
+public class MediaSessionCompatApi14 {
     /***** RemoteControlClient States, we only need none as the others were public *******/
     final static int RCC_PLAYSTATE_NONE = 0;
 
@@ -224,7 +224,7 @@ class MediaSessionCompatApi14 {
         }
     }
 
-    static interface Callback {
+    public static interface Callback {
         public void onCommand(String command, Bundle extras, ResultReceiver cb);
 
         public boolean onMediaButtonEvent(Intent mediaButtonIntent);

@@ -565,6 +565,13 @@ public abstract class RowPresenter extends Presenter {
         return mHeaderPresenter != null || needsDefaultSelectEffect();
     }
 
+    /**
+     * Returns true if the Row view can draw outside its bounds.
+     */
+    public boolean canDrawOutOfBounds() {
+        return false;
+    }
+
     @Override
     public final void onBindViewHolder(Presenter.ViewHolder viewHolder, Object item) {
         onBindRowViewHolder(getRowViewHolder(viewHolder), item);
@@ -635,16 +642,12 @@ public abstract class RowPresenter extends Presenter {
      * Changes the visibility of views.  The entrance transition will be run against the views that
      * change visibilities.  A subclass may override and begin with calling
      * super.setEntranceTransitionState().  This method is called by the fragment,
-     * it should not be called directly by the application.
-     *
-     * @param holder         The ViewHolder of the row.
-     * @param afterEntrance  true if children of row participating in entrance transition
-     *                       should be set to visible, false otherwise.
+     * it should not call it directly by the application.
      */
-    public void setEntranceTransitionState(ViewHolder holder, boolean afterEntrance) {
+    public void setEntranceTransitionState(ViewHolder holder, boolean afterTransition) {
         if (holder.mHeaderViewHolder != null &&
                 holder.mHeaderViewHolder.view.getVisibility() != View.GONE) {
-            holder.mHeaderViewHolder.view.setVisibility(afterEntrance ?
+            holder.mHeaderViewHolder.view.setVisibility(afterTransition ?
                     View.VISIBLE : View.INVISIBLE);
         }
     }

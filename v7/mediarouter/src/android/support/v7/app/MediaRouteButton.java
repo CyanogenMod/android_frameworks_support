@@ -120,8 +120,7 @@ public class MediaRouteButton extends View {
     }
 
     public MediaRouteButton(Context context, AttributeSet attrs, int defStyleAttr) {
-        super(MediaRouterThemeHelper.createThemedContext(context, defStyleAttr), attrs,
-                defStyleAttr);
+        super(MediaRouterThemeHelper.createThemedContext(context), attrs, defStyleAttr);
         context = getContext();
 
         mRouter = MediaRouter.getInstance(context);
@@ -432,40 +431,40 @@ public class MediaRouteButton extends View {
         final int widthMode = MeasureSpec.getMode(widthMeasureSpec);
         final int heightMode = MeasureSpec.getMode(heightMeasureSpec);
 
-        final int width = Math.max(mMinWidth, mRemoteIndicator != null ?
-                mRemoteIndicator.getIntrinsicWidth() + getPaddingLeft() + getPaddingRight() : 0);
-        final int height = Math.max(mMinHeight, mRemoteIndicator != null ?
-                mRemoteIndicator.getIntrinsicHeight() + getPaddingTop() + getPaddingBottom() : 0);
+        final int minWidth = Math.max(mMinWidth,
+                mRemoteIndicator != null ? mRemoteIndicator.getIntrinsicWidth() : 0);
+        final int minHeight = Math.max(mMinHeight,
+                mRemoteIndicator != null ? mRemoteIndicator.getIntrinsicHeight() : 0);
 
-        int measuredWidth;
+        int width;
         switch (widthMode) {
             case MeasureSpec.EXACTLY:
-                measuredWidth = widthSize;
+                width = widthSize;
                 break;
             case MeasureSpec.AT_MOST:
-                measuredWidth = Math.min(widthSize, width);
+                width = Math.min(widthSize, minWidth + getPaddingLeft() + getPaddingRight());
                 break;
             default:
             case MeasureSpec.UNSPECIFIED:
-                measuredWidth = width;
+                width = minWidth + getPaddingLeft() + getPaddingRight();
                 break;
         }
 
-        int measuredHeight;
+        int height;
         switch (heightMode) {
             case MeasureSpec.EXACTLY:
-                measuredHeight = heightSize;
+                height = heightSize;
                 break;
             case MeasureSpec.AT_MOST:
-                measuredHeight = Math.min(heightSize, height);
+                height = Math.min(heightSize, minHeight + getPaddingTop() + getPaddingBottom());
                 break;
             default:
             case MeasureSpec.UNSPECIFIED:
-                measuredHeight = height;
+                height = minHeight + getPaddingTop() + getPaddingBottom();
                 break;
         }
 
-        setMeasuredDimension(measuredWidth, measuredHeight);
+        setMeasuredDimension(width, height);
     }
 
     @Override

@@ -18,23 +18,17 @@ package android.support.v7.graphics;
 
 import android.graphics.Bitmap;
 import android.graphics.Color;
-import android.graphics.Rect;
 import android.os.AsyncTask;
 import android.support.annotation.ColorInt;
-import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.graphics.ColorUtils;
 import android.support.v4.os.AsyncTaskCompat;
-import android.support.v4.util.ArrayMap;
-import android.util.Log;
-import android.util.SparseBooleanArray;
 import android.util.TimingLogger;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 /**
  * A helper class to extract prominent colors from an image.
@@ -84,7 +78,7 @@ public final class Palette {
         void onGenerated(Palette palette);
     }
 
-    private static final int DEFAULT_RESIZE_BITMAP_AREA = 160 * 160;
+    private static final int DEFAULT_RESIZE_BITMAP_MAX_DIMENSION = 192;
     private static final int DEFAULT_CALCULATE_NUMBER_COLORS = 16;
 
     private static final float MIN_CONTRAST_TITLE_TEXT = 3.0f;
@@ -144,266 +138,151 @@ public final class Palette {
     }
 
     private final List<Swatch> mSwatches;
-    private final List<Target> mTargets;
+    private final Generator mGenerator;
 
-    private final Map<Target, Swatch> mSelectedSwatches;
-    private final SparseBooleanArray mUsedColors;
-
-    private final int mMaxPopulation;
-
-    private Palette(List<Swatch> swatches, List<Target> targets) {
+    private Palette(List<Swatch> swatches, Generator generator) {
         mSwatches = swatches;
-        mTargets = targets;
-
-        mUsedColors = new SparseBooleanArray();
-        mSelectedSwatches = new ArrayMap<>();
-
-        mMaxPopulation = findMaxPopulation();
+        mGenerator = generator;
     }
 
     /**
      * Returns all of the swatches which make up the palette.
      */
-    @NonNull
     public List<Swatch> getSwatches() {
         return Collections.unmodifiableList(mSwatches);
     }
 
     /**
-     * Returns the targets used to generate this palette.
-     */
-    @NonNull
-    public List<Target> getTargets() {
-        return Collections.unmodifiableList(mTargets);
-    }
-
-    /**
      * Returns the most vibrant swatch in the palette. Might be null.
-     *
-     * @see Target#VIBRANT
      */
     @Nullable
     public Swatch getVibrantSwatch() {
-        return getSwatchForTarget(Target.VIBRANT);
+        return mGenerator.getVibrantSwatch();
     }
 
     /**
      * Returns a light and vibrant swatch from the palette. Might be null.
-     *
-     * @see Target#LIGHT_VIBRANT
      */
     @Nullable
     public Swatch getLightVibrantSwatch() {
-        return getSwatchForTarget(Target.LIGHT_VIBRANT);
+        return mGenerator.getLightVibrantSwatch();
     }
 
     /**
      * Returns a dark and vibrant swatch from the palette. Might be null.
-     *
-     * @see Target#DARK_VIBRANT
      */
     @Nullable
     public Swatch getDarkVibrantSwatch() {
-        return getSwatchForTarget(Target.DARK_VIBRANT);
+        return mGenerator.getDarkVibrantSwatch();
     }
 
     /**
      * Returns a muted swatch from the palette. Might be null.
-     *
-     * @see Target#MUTED
      */
     @Nullable
     public Swatch getMutedSwatch() {
-        return getSwatchForTarget(Target.MUTED);
+        return mGenerator.getMutedSwatch();
     }
 
     /**
      * Returns a muted and light swatch from the palette. Might be null.
-     *
-     * @see Target#LIGHT_MUTED
      */
     @Nullable
     public Swatch getLightMutedSwatch() {
-        return getSwatchForTarget(Target.LIGHT_MUTED);
+        return mGenerator.getLightMutedSwatch();
     }
 
     /**
      * Returns a muted and dark swatch from the palette. Might be null.
-     *
-     * @see Target#DARK_MUTED
      */
     @Nullable
     public Swatch getDarkMutedSwatch() {
-        return getSwatchForTarget(Target.DARK_MUTED);
+        return mGenerator.getDarkMutedSwatch();
     }
 
     /**
      * Returns the most vibrant color in the palette as an RGB packed int.
      *
      * @param defaultColor value to return if the swatch isn't available
-     * @see #getVibrantSwatch()
      */
     @ColorInt
-    public int getVibrantColor(@ColorInt final int defaultColor) {
-        return getColorForTarget(Target.VIBRANT, defaultColor);
+    public int getVibrantColor(@ColorInt int defaultColor) {
+        Swatch swatch = getVibrantSwatch();
+        return swatch != null ? swatch.getRgb() : defaultColor;
     }
 
     /**
      * Returns a light and vibrant color from the palette as an RGB packed int.
      *
      * @param defaultColor value to return if the swatch isn't available
-     * @see #getLightVibrantSwatch()
      */
     @ColorInt
-    public int getLightVibrantColor(@ColorInt final int defaultColor) {
-        return getColorForTarget(Target.LIGHT_VIBRANT, defaultColor);
+    public int getLightVibrantColor(@ColorInt int defaultColor) {
+        Swatch swatch = getLightVibrantSwatch();
+        return swatch != null ? swatch.getRgb() : defaultColor;
     }
 
     /**
      * Returns a dark and vibrant color from the palette as an RGB packed int.
      *
      * @param defaultColor value to return if the swatch isn't available
-     * @see #getDarkVibrantSwatch()
      */
     @ColorInt
-    public int getDarkVibrantColor(@ColorInt final int defaultColor) {
-        return getColorForTarget(Target.DARK_VIBRANT, defaultColor);
+    public int getDarkVibrantColor(@ColorInt int defaultColor) {
+        Swatch swatch = getDarkVibrantSwatch();
+        return swatch != null ? swatch.getRgb() : defaultColor;
     }
 
     /**
      * Returns a muted color from the palette as an RGB packed int.
      *
      * @param defaultColor value to return if the swatch isn't available
-     * @see #getMutedSwatch()
      */
     @ColorInt
-    public int getMutedColor(@ColorInt final int defaultColor) {
-        return getColorForTarget(Target.MUTED, defaultColor);
+    public int getMutedColor(@ColorInt int defaultColor) {
+        Swatch swatch = getMutedSwatch();
+        return swatch != null ? swatch.getRgb() : defaultColor;
     }
 
     /**
      * Returns a muted and light color from the palette as an RGB packed int.
      *
      * @param defaultColor value to return if the swatch isn't available
-     * @see #getLightMutedSwatch()
      */
     @ColorInt
-    public int getLightMutedColor(@ColorInt final int defaultColor) {
-        return getColorForTarget(Target.LIGHT_MUTED, defaultColor);
+    public int getLightMutedColor(@ColorInt int defaultColor) {
+        Swatch swatch = getLightMutedSwatch();
+        return swatch != null ? swatch.getRgb() : defaultColor;
     }
 
     /**
      * Returns a muted and dark color from the palette as an RGB packed int.
      *
      * @param defaultColor value to return if the swatch isn't available
-     * @see #getDarkMutedSwatch()
      */
     @ColorInt
-    public int getDarkMutedColor(@ColorInt final int defaultColor) {
-        return getColorForTarget(Target.DARK_MUTED, defaultColor);
-    }
-
-    /**
-     * Returns the selected swatch for the given target from the palette, or {@code null} if one
-     * could not be found.
-     */
-    @Nullable
-    public Swatch getSwatchForTarget(@NonNull final Target target) {
-        return mSelectedSwatches.get(target);
-    }
-
-    /**
-     * Returns the selected color for the given target from the palette as an RGB packed int.
-     *
-     * @param defaultColor value to return if the swatch isn't available
-     */
-    @ColorInt
-    public int getColorForTarget(@NonNull final Target target, @ColorInt final int defaultColor) {
-        Swatch swatch = getSwatchForTarget(target);
+    public int getDarkMutedColor(@ColorInt int defaultColor) {
+        Swatch swatch = getDarkMutedSwatch();
         return swatch != null ? swatch.getRgb() : defaultColor;
     }
 
-    private void generate() {
-        // We need to make sure that the scored targets are generated first. This is so that
-        // inherited targets have something to inherit from
-        for (int i = 0, count = mTargets.size(); i < count; i++) {
-            final Target target = mTargets.get(i);
-            target.normalizeWeights();
-            mSelectedSwatches.put(target, generateScoredTarget(target));
-        }
-        // We now clear out the used colors
-        mUsedColors.clear();
-    }
+    /**
+     * Scale the bitmap down so that it's largest dimension is {@code targetMaxDimension}.
+     * If {@code bitmap} is smaller than this, then it is returned.
+     */
+    private static Bitmap scaleBitmapDown(Bitmap bitmap, final int targetMaxDimension) {
+        final int maxDimension = Math.max(bitmap.getWidth(), bitmap.getHeight());
 
-    private Swatch generateScoredTarget(final Target target) {
-        final Swatch maxScoreSwatch = getMaxScoredSwatchForTarget(target);
-        if (maxScoreSwatch != null && target.isExclusive()) {
-            // If we have a swatch, and the target is exclusive, add the color to the used list
-            mUsedColors.append(maxScoreSwatch.getRgb(), true);
-        }
-        return maxScoreSwatch;
-    }
-
-    private Swatch getMaxScoredSwatchForTarget(final Target target) {
-        float maxScore = 0;
-        Swatch maxScoreSwatch = null;
-        for (int i = 0, count = mSwatches.size(); i < count; i++) {
-            final Swatch swatch = mSwatches.get(i);
-            if (shouldBeScoredForTarget(swatch, target)) {
-                final float score = generateScore(swatch, target);
-                if (maxScoreSwatch == null || score > maxScore) {
-                    maxScoreSwatch = swatch;
-                    maxScore = score;
-                }
-            }
-        }
-        return maxScoreSwatch;
-    }
-
-    private boolean shouldBeScoredForTarget(final Swatch swatch, final Target target) {
-        // Check whether the HSL values are within the correct ranges, and this color hasn't
-        // been used yet.
-        final float hsl[] = swatch.getHsl();
-        return hsl[1] >= target.getMinimumSaturation() && hsl[1] <= target.getMaximumSaturation()
-                && hsl[2] >= target.getMinimumLightness() && hsl[2] <= target.getMaximumLightness()
-                && !mUsedColors.get(swatch.getRgb());
-    }
-
-    private float generateScore(Swatch swatch, Target target) {
-        final float[] hsl = swatch.getHsl();
-
-        float saturationScore = 0;
-        float luminanceScore = 0;
-        float populationScore = 0;
-
-        if (target.getSaturationWeight() > 0) {
-            saturationScore = target.getSaturationWeight()
-                    * (1f - Math.abs(hsl[1] - target.getTargetSaturation()));
-        }
-        if (target.getLightnessWeight() > 0) {
-            luminanceScore = target.getLightnessWeight()
-                    * (1f - Math.abs(hsl[2] - target.getTargetLightness()));
-        }
-        if (target.getPopulationWeight() > 0) {
-            populationScore = target.getPopulationWeight()
-                    * (swatch.getPopulation() / (float) mMaxPopulation);
+        if (maxDimension <= targetMaxDimension) {
+            // If the bitmap is small enough already, just return it
+            return bitmap;
         }
 
-        return saturationScore + luminanceScore + populationScore;
-    }
-
-    private int findMaxPopulation() {
-        int max = 0;
-        for (int i = 0, count = mSwatches.size(); i < count; i++) {
-            max = Math.max(mSwatches.get(i).getPopulation(), max);
-        }
-        return max;
-    }
-
-    private static float[] copyHslValues(Swatch color) {
-        final float[] newHsl = new float[3];
-        System.arraycopy(color.getHsl(), 0, newHsl, 0, 3);
-        return newHsl;
+        final float scaleRatio = targetMaxDimension / (float) maxDimension;
+        return Bitmap.createScaledBitmap(bitmap,
+                Math.round(bitmap.getWidth() * scaleRatio),
+                Math.round(bitmap.getHeight() * scaleRatio),
+                false);
     }
 
     /**
@@ -437,11 +316,6 @@ public final class Palette {
             mPopulation = population;
         }
 
-        Swatch(float[] hsl, int population) {
-            this(ColorUtils.HSLToColor(hsl), population);
-            mHsl = hsl;
-        }
-
         /**
          * @return this swatch's RGB color value
          */
@@ -459,8 +333,8 @@ public final class Palette {
         public float[] getHsl() {
             if (mHsl == null) {
                 mHsl = new float[3];
+                ColorUtils.RGBToHSL(mRed, mGreen, mBlue, mHsl);
             }
-            ColorUtils.RGBToHSL(mRed, mGreen, mBlue, mHsl);
             return mHsl;
         }
 
@@ -567,36 +441,23 @@ public final class Palette {
      * Builder class for generating {@link Palette} instances.
      */
     public static final class Builder {
-        private final List<Swatch> mSwatches;
-        private final Bitmap mBitmap;
-
-        private final List<Target> mTargets = new ArrayList<>();
-
+        private List<Swatch> mSwatches;
+        private Bitmap mBitmap;
         private int mMaxColors = DEFAULT_CALCULATE_NUMBER_COLORS;
-        private int mResizeArea = DEFAULT_RESIZE_BITMAP_AREA;
-        private int mResizeMaxDimension = -1;
-
+        private int mResizeMaxDimension = DEFAULT_RESIZE_BITMAP_MAX_DIMENSION;
         private final List<Filter> mFilters = new ArrayList<>();
-        private Rect mRegion;
+
+        private Generator mGenerator;
 
         /**
          * Construct a new {@link Builder} using a source {@link Bitmap}
          */
         public Builder(Bitmap bitmap) {
+            this();
             if (bitmap == null || bitmap.isRecycled()) {
                 throw new IllegalArgumentException("Bitmap is not valid");
             }
-            mFilters.add(DEFAULT_FILTER);
             mBitmap = bitmap;
-            mSwatches = null;
-
-            // Add the default targets
-            mTargets.add(Target.LIGHT_VIBRANT);
-            mTargets.add(Target.VIBRANT);
-            mTargets.add(Target.DARK_VIBRANT);
-            mTargets.add(Target.LIGHT_MUTED);
-            mTargets.add(Target.MUTED);
-            mTargets.add(Target.DARK_MUTED);
         }
 
         /**
@@ -604,12 +465,24 @@ public final class Palette {
          * Typically only used for testing.
          */
         public Builder(List<Swatch> swatches) {
+            this();
             if (swatches == null || swatches.isEmpty()) {
                 throw new IllegalArgumentException("List of Swatches is not valid");
             }
-            mFilters.add(DEFAULT_FILTER);
             mSwatches = swatches;
-            mBitmap = null;
+        }
+
+        private Builder() {
+            mFilters.add(DEFAULT_FILTER);
+        }
+
+        /**
+         * Set the {@link Generator} to use when generating the {@link Palette}. If this is called
+         * with {@code null} then the default generator will be used.
+         */
+        Builder generator(Generator generator) {
+            mGenerator = generator;
+            return this;
         }
 
         /**
@@ -620,7 +493,6 @@ public final class Palette {
          * the range 10-16. For images which are largely made up of people's faces then this
          * value should be increased to ~24.
          */
-        @NonNull
         public Builder maximumColorCount(int colors) {
             mMaxColors = colors;
             return this;
@@ -631,38 +503,13 @@ public final class Palette {
          * If the bitmap's largest dimension is greater than the value specified, then the bitmap
          * will be resized so that it's largest dimension matches {@code maxDimension}. If the
          * bitmap is smaller or equal, the original is used as-is.
-         *
-         * @deprecated Using {@link #resizeBitmapArea(int)} is preferred since it can handle
-         * abnormal aspect ratios more gracefully.
-         *
-         * @param maxDimension the number of pixels that the max dimension should be scaled down to,
-         *                     or any value <= 0 to disable resizing.
-         */
-        @NonNull
-        @Deprecated
-        public Builder resizeBitmapSize(final int maxDimension) {
-            mResizeMaxDimension = maxDimension;
-            mResizeArea = -1;
-            return this;
-        }
-
-        /**
-         * Set the resize value when using a {@link android.graphics.Bitmap} as the source.
-         * If the bitmap's area is greater than the value specified, then the bitmap
-         * will be resized so that it's area matches {@code area}. If the
-         * bitmap is smaller or equal, the original is used as-is.
          * <p>
          * This value has a large effect on the processing time. The larger the resized image is,
          * the greater time it will take to generate the palette. The smaller the image is, the
          * more detail is lost in the resulting image and thus less precision for color selection.
-         *
-         * @param area the number of pixels that the intemediary scaled down Bitmap should cover,
-         *             or any value <= 0 to disable resizing.
          */
-        @NonNull
-        public Builder resizeBitmapArea(final int area) {
-            mResizeArea = area;
-            mResizeMaxDimension = -1;
+        public Builder resizeBitmapSize(int maxDimension) {
+            mResizeMaxDimension = maxDimension;
             return this;
         }
 
@@ -670,19 +517,17 @@ public final class Palette {
          * Clear all added filters. This includes any default filters added automatically by
          * {@link Palette}.
          */
-        @NonNull
         public Builder clearFilters() {
             mFilters.clear();
             return this;
         }
 
         /**
-         * Add a filter to be able to have fine grained control over which colors are
+         * Add a filter to be able to have fine grained controlled over the colors which are
          * allowed in the resulting palette.
          *
          * @param filter filter to add.
          */
-        @NonNull
         public Builder addFilter(Filter filter) {
             if (filter != null) {
                 mFilters.add(filter);
@@ -691,67 +536,8 @@ public final class Palette {
         }
 
         /**
-         * Set a region of the bitmap to be used exclusively when calculating the palette.
-         * <p>This only works when the original input is a {@link Bitmap}.</p>
-         *
-         * @param left The left side of the rectangle used for the region.
-         * @param top The top of the rectangle used for the region.
-         * @param right The right side of the rectangle used for the region.
-         * @param bottom The bottom of the rectangle used for the region.
-         */
-        @NonNull
-        public Builder setRegion(int left, int top, int right, int bottom) {
-            if (mBitmap != null) {
-                if (mRegion == null) mRegion = new Rect();
-                // Set the Rect to be initially the whole Bitmap
-                mRegion.set(0, 0, mBitmap.getWidth(), mBitmap.getHeight());
-                // Now just get the intersection with the region
-                if (!mRegion.intersect(left, top, right, bottom)) {
-                    throw new IllegalArgumentException("The given region must intersect with "
-                            + "the Bitmap's dimensions.");
-                }
-            }
-            return this;
-        }
-
-        /**
-         * Clear any previously region set via {@link #setRegion(int, int, int, int)}.
-         */
-        @NonNull
-        public Builder clearRegion() {
-            mRegion = null;
-            return this;
-        }
-
-        /**
-         * Add a target profile to be generated in the palette.
-         *
-         * <p>You can retrieve the result via {@link Palette#getSwatchForTarget(Target)}.</p>
-         */
-        @NonNull
-        public Builder addTarget(@NonNull final Target target) {
-            if (!mTargets.contains(target)) {
-                mTargets.add(target);
-            }
-            return this;
-        }
-
-        /**
-         * Clear all added targets. This includes any default targets added automatically by
-         * {@link Palette}.
-         */
-        @NonNull
-        public Builder clearTargets() {
-            if (mTargets != null) {
-                mTargets.clear();
-            }
-            return this;
-        }
-
-        /**
          * Generate and return the {@link Palette} synchronously.
          */
-        @NonNull
         public Palette generate() {
             final TimingLogger logger = LOG_TIMINGS
                     ? new TimingLogger(LOG_TAG, "Generation")
@@ -760,37 +546,33 @@ public final class Palette {
             List<Swatch> swatches;
 
             if (mBitmap != null) {
-                // We have a Bitmap so we need to use quantization to reduce the number of colors
+                // We have a Bitmap so we need to quantization to reduce the number of colors
 
-                // First we'll scale down the bitmap if needed
-                final Bitmap bitmap = scaleBitmapDown(mBitmap);
+                if (mResizeMaxDimension <= 0) {
+                    throw new IllegalArgumentException(
+                            "Minimum dimension size for resizing should should be >= 1");
+                }
+
+                // First we'll scale down the bitmap so it's largest dimension is as specified
+                final Bitmap scaledBitmap = scaleBitmapDown(mBitmap, mResizeMaxDimension);
 
                 if (logger != null) {
                     logger.addSplit("Processed Bitmap");
                 }
 
-                final Rect region = mRegion;
-                if (bitmap != mBitmap && region != null) {
-                    // If we have a scaled bitmap and a selected region, we need to scale down the
-                    // region to match the new scale
-                    final float scale = bitmap.getWidth() / (float) mBitmap.getWidth();
-                    region.left = (int) Math.floor(region.left * scale);
-                    region.top = (int) Math.floor(region.top * scale);
-                    region.right = (int) Math.ceil(region.right * scale);
-                    region.bottom = (int) Math.ceil(region.bottom * scale);
-                }
-
                 // Now generate a quantizer from the Bitmap
-                final ColorCutQuantizer quantizer = new ColorCutQuantizer(
-                        getPixelsFromBitmap(bitmap),
-                        mMaxColors,
+                final int width = scaledBitmap.getWidth();
+                final int height = scaledBitmap.getHeight();
+                final int[] pixels = new int[width * height];
+                scaledBitmap.getPixels(pixels, 0, width, 0, 0, width, height);
+
+                final ColorCutQuantizer quantizer = new ColorCutQuantizer(pixels, mMaxColors,
                         mFilters.isEmpty() ? null : mFilters.toArray(new Filter[mFilters.size()]));
 
                 // If created a new bitmap, recycle it
-                if (bitmap != mBitmap) {
-                    bitmap.recycle();
+                if (scaledBitmap != mBitmap) {
+                    scaledBitmap.recycle();
                 }
-
                 swatches = quantizer.getQuantizedColors();
 
                 if (logger != null) {
@@ -801,10 +583,20 @@ public final class Palette {
                 swatches = mSwatches;
             }
 
+            // If we haven't been provided with a generator, use the default
+            if (mGenerator == null) {
+                mGenerator = new DefaultGenerator();
+            }
+
+            // Now call let the Generator do it's thing
+            mGenerator.generate(swatches);
+
+            if (logger != null) {
+                logger.addSplit("Generator.generate() completed");
+            }
+
             // Now create a Palette instance
-            final Palette p = new Palette(swatches, mTargets);
-            // And make it generate itself
-            p.generate();
+            Palette p = new Palette(swatches, mGenerator);
 
             if (logger != null) {
                 logger.addSplit("Created Palette");
@@ -819,7 +611,6 @@ public final class Palette {
          * {@link PaletteAsyncListener#onGenerated} method will be called with the palette when
          * generated.
          */
-        @NonNull
         public AsyncTask<Bitmap, Void, Palette> generate(final PaletteAsyncListener listener) {
             if (listener == null) {
                 throw new IllegalArgumentException("listener can not be null");
@@ -829,12 +620,7 @@ public final class Palette {
                     new AsyncTask<Bitmap, Void, Palette>() {
                         @Override
                         protected Palette doInBackground(Bitmap... params) {
-                            try {
-                                return generate();
-                            } catch (Exception e) {
-                                Log.e(LOG_TAG, "Exception thrown during async generate", e);
-                                return null;
-                            }
+                            return generate();
                         }
 
                         @Override
@@ -843,62 +629,59 @@ public final class Palette {
                         }
                     }, mBitmap);
         }
+    }
 
-        private int[] getPixelsFromBitmap(Bitmap bitmap) {
-            final int bitmapWidth = bitmap.getWidth();
-            final int bitmapHeight = bitmap.getHeight();
-            final int[] pixels = new int[bitmapWidth * bitmapHeight];
+    static abstract class Generator {
 
-            if (mRegion == null) {
-                // If we don't have a region, return all of the pixels
-                bitmap.getPixels(pixels, 0, bitmapWidth, 0, 0, bitmapWidth, bitmapHeight);
-                return pixels;
-            } else {
-                // If we do have a region, lets create a subset array containing only the region's
-                // pixels
-                final int regionWidth = mRegion.width();
-                final int regionHeight = mRegion.height();
-                // First read the pixels within the region
-                bitmap.getPixels(pixels, 0, bitmapWidth, mRegion.left, mRegion.top,
-                        regionWidth, regionHeight);
-                // pixels now contains all of the pixels, but not packed together. We need to
-                // iterate through each row and copy them into a new smaller array
-                final int[] subsetPixels = new int[regionWidth * regionHeight];
-                for (int row = 0; row < regionHeight; row++) {
-                    System.arraycopy(pixels, ((row + mRegion.top) * bitmapWidth) + mRegion.left,
-                            subsetPixels, row * regionWidth, regionWidth);
-                }
-                return subsetPixels;
-            }
+        /**
+         * This method will be called with the {@link Palette.Swatch} that represent an image.
+         * You should process this list so that you have appropriate values when the other methods in
+         * class are called.
+         * <p>
+         * This method will probably be called on a background thread.
+         */
+        public abstract void generate(List<Palette.Swatch> swatches);
+
+        /**
+         * Return the most vibrant {@link Palette.Swatch}
+         */
+        public Palette.Swatch getVibrantSwatch() {
+            return null;
         }
 
         /**
-         * Scale the bitmap down as needed.
+         * Return a light and vibrant {@link Palette.Swatch}
          */
-        private Bitmap scaleBitmapDown(final Bitmap bitmap) {
-            double scaleRatio = -1;
+        public Palette.Swatch getLightVibrantSwatch() {
+            return null;
+        }
 
-            if (mResizeArea > 0) {
-                final int bitmapArea = bitmap.getWidth() * bitmap.getHeight();
-                if (bitmapArea > mResizeArea) {
-                    scaleRatio = mResizeArea / (double) bitmapArea;
-                }
-            } else if (mResizeMaxDimension > 0) {
-                final int maxDimension = Math.max(bitmap.getWidth(), bitmap.getHeight());
-                if (maxDimension > mResizeMaxDimension) {
-                    scaleRatio = mResizeMaxDimension / (double) maxDimension;
-                }
-            }
+        /**
+         * Return a dark and vibrant {@link Palette.Swatch}
+         */
+        public Palette.Swatch getDarkVibrantSwatch() {
+            return null;
+        }
 
-            if (scaleRatio <= 0) {
-                // Scaling has been disabled or not needed so just return the Bitmap
-                return bitmap;
-            }
+        /**
+         * Return a muted {@link Palette.Swatch}
+         */
+        public Palette.Swatch getMutedSwatch() {
+            return null;
+        }
 
-            return Bitmap.createScaledBitmap(bitmap,
-                    (int) Math.ceil(bitmap.getWidth() * scaleRatio),
-                    (int) Math.ceil(bitmap.getHeight() * scaleRatio),
-                    false);
+        /**
+         * Return a muted and light {@link Palette.Swatch}
+         */
+        public Palette.Swatch getLightMutedSwatch() {
+            return null;
+        }
+
+        /**
+         * Return a muted and dark {@link Palette.Swatch}
+         */
+        public Palette.Swatch getDarkMutedSwatch() {
+            return null;
         }
     }
 

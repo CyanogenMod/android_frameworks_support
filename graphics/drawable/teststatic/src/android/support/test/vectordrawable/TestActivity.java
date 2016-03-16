@@ -34,10 +34,6 @@ public class TestActivity extends Activity {
 
     private static final String LOGCAT = "VectorDrawable1";
     protected int[] icon = {
-            R.drawable.vector_drawable_scale0,
-            R.drawable.vector_drawable_scale1,
-            R.drawable.vector_drawable_scale2,
-            R.drawable.vector_drawable_scale3,
             R.drawable.vector_drawable01,
             R.drawable.vector_drawable02,
             R.drawable.vector_drawable03,
@@ -68,8 +64,6 @@ public class TestActivity extends Activity {
             R.drawable.vector_drawable28,
             R.drawable.vector_drawable29,
             R.drawable.vector_drawable30,
-            R.drawable.vector_test01,
-            R.drawable.vector_test02
     };
 
     private static final int EXTRA_TESTS = 2;
@@ -91,10 +85,8 @@ public class TestActivity extends Activity {
         time =  android.os.SystemClock.currentThreadTimeMillis()-time;
 
         // Testing Tint on one particular case.
-        if (d.length > 3) {
-            d[3].setTint(0x8000FF00);
-            d[3].setTintMode(Mode.MULTIPLY);
-        }
+        d[3].setTint(0x8000FF00);
+        d[3].setTintMode(Mode.MULTIPLY);
 
         // Testing Constant State like operation by creating the first 2 icons
         // from the 3rd one's constant state.

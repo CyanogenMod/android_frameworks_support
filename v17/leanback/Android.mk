@@ -28,8 +28,6 @@ LOCAL_AAPT_FLAGS := \
 LOCAL_JAR_EXCLUDE_FILES := none
 include $(BUILD_STATIC_JAVA_LIBRARY)
 
-support_module_src_files := $(LOCAL_SRC_FILES)
-
 # -----------------------------------------------------------------------
 
 #  Base sub-library contains classes both needed by api-level specific libraries
@@ -39,20 +37,6 @@ LOCAL_MODULE := android-support-v17-leanback-common
 LOCAL_SDK_VERSION := 17
 LOCAL_SRC_FILES := $(call all-java-files-under, common)
 include $(BUILD_STATIC_JAVA_LIBRARY)
-
-support_module_src_files += $(LOCAL_SRC_FILES)
-
-# -----------------------------------------------------------------------
-
-#  A helper sub-library that makes direct use of API 23.
-include $(CLEAR_VARS)
-LOCAL_MODULE := android-support-v17-leanback-api23
-LOCAL_SDK_VERSION := current
-LOCAL_SRC_FILES := $(call all-java-files-under, api23)
-LOCAL_JAVA_LIBRARIES := android-support-v17-leanback-res android-support-v17-leanback-common
-include $(BUILD_STATIC_JAVA_LIBRARY)
-
-support_module_src_files += $(LOCAL_SRC_FILES)
 
 # -----------------------------------------------------------------------
 
@@ -64,8 +48,6 @@ LOCAL_SRC_FILES := $(call all-java-files-under, api21)
 LOCAL_JAVA_LIBRARIES := android-support-v17-leanback-res android-support-v17-leanback-common
 include $(BUILD_STATIC_JAVA_LIBRARY)
 
-support_module_src_files += $(LOCAL_SRC_FILES)
-
 # -----------------------------------------------------------------------
 
 #  A helper sub-library that makes direct use of KitKat APIs.
@@ -76,8 +58,6 @@ LOCAL_SRC_FILES := $(call all-java-files-under, kitkat)
 LOCAL_JAVA_LIBRARIES := android-support-v17-leanback-res android-support-v17-leanback-common
 include $(BUILD_STATIC_JAVA_LIBRARY)
 
-support_module_src_files += $(LOCAL_SRC_FILES)
-
 # -----------------------------------------------------------------------
 
 #  A helper sub-library that makes direct use of JBMR2 APIs.
@@ -87,8 +67,6 @@ LOCAL_SDK_VERSION := 18
 LOCAL_SRC_FILES := $(call all-java-files-under, jbmr2)
 LOCAL_JAVA_LIBRARIES := android-support-v17-leanback-res android-support-v17-leanback-common
 include $(BUILD_STATIC_JAVA_LIBRARY)
-
-support_module_src_files += $(LOCAL_SRC_FILES)
 
 # -----------------------------------------------------------------------
 
@@ -101,7 +79,6 @@ LOCAL_MODULE := android-support-v17-leanback
 LOCAL_SDK_VERSION := 17
 LOCAL_SRC_FILES := $(call all-java-files-under, src)
 LOCAL_STATIC_JAVA_LIBRARIES := android-support-v17-leanback-kitkat android-support-v17-leanback-jbmr2 \
-        android-support-v17-leanback-api23 \
         android-support-v17-leanback-api21 android-support-v17-leanback-common
 LOCAL_JAVA_LIBRARIES := \
         android-support-v4 \
@@ -109,7 +86,6 @@ LOCAL_JAVA_LIBRARIES := \
         android-support-v17-leanback-res
 include $(BUILD_STATIC_JAVA_LIBRARY)
 
-support_module_src_files += $(LOCAL_SRC_FILES)
 
 # ===========================================================
 # Common Droiddoc vars
@@ -155,6 +131,7 @@ include $(BUILD_DROIDDOC)
 # ---------------------------------------------
 support_module := $(LOCAL_MODULE)
 support_module_api_dir := $(LOCAL_PATH)/api
+support_module_src_files := $(leanback.docs.src_files)
 support_module_java_libraries := $(leanback.docs.java_libraries)
 support_module_java_packages := android.support.v17.leanback*
 include $(SUPPORT_API_CHECK)

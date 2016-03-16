@@ -22,7 +22,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Locale;
 
-class ICUCompatApi23 {
+public class ICUCompatApi23 {
 
     private static final String TAG = "ICUCompatIcs";
 

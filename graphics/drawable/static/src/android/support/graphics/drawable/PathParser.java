@@ -131,8 +131,8 @@ class PathParser {
         }
 
         for (int i = 0; i < nodesFrom.length; i ++) {
-            if (nodesFrom[i].type != nodesTo[i].type
-                    || nodesFrom[i].params.length != nodesTo[i].params.length) {
+            if (nodesFrom[i].mType != nodesTo[i].mType
+                    || nodesFrom[i].mParams.length != nodesTo[i].mParams.length) {
                 return false;
             }
         }
@@ -148,9 +148,9 @@ class PathParser {
      */
     public static void updateNodes(PathDataNode[] target, PathDataNode[] source) {
         for (int i = 0; i < source.length; i ++) {
-            target[i].type = source[i].type;
-            for (int j = 0; j < source[i].params.length; j ++) {
-                target[i].params[j] = source[i].params[j];
+            target[i].mType = source[i].mType;
+            for (int j = 0; j < source[i].mParams.length; j ++) {
+                target[i].mParams[j] = source[i].mParams[j];
             }
         }
     }
@@ -288,18 +288,17 @@ class PathParser {
      * An array of PathDataNode can represent the whole "d" attribute.
      */
     public static class PathDataNode {
-        /*package*/
-        char type;
-        float[] params;
+        private char mType;
+        private float[] mParams;
 
         private PathDataNode(char type, float[] params) {
-            this.type = type;
-            this.params = params;
+            mType = type;
+            mParams = params;
         }
 
         private PathDataNode(PathDataNode n) {
-            type = n.type;
-            params = copyOfRange(n.params, 0, n.params.length);
+            mType = n.mType;
+            mParams = copyOfRange(n.mParams, 0, n.mParams.length);
         }
 
         /**
@@ -312,8 +311,8 @@ class PathParser {
             float[] current = new float[6];
             char previousCommand = 'm';
             for (int i = 0; i < node.length; i++) {
-                addCommand(path, current, previousCommand, node[i].type, node[i].params);
-                previousCommand = node[i].type;
+                addCommand(path, current, previousCommand, node[i].mType, node[i].mParams);
+                previousCommand = node[i].mType;
             }
         }
 
@@ -328,9 +327,9 @@ class PathParser {
          */
         public void interpolatePathDataNode(PathDataNode nodeFrom,
                 PathDataNode nodeTo, float fraction) {
-            for (int i = 0; i < nodeFrom.params.length; i++) {
-                params[i] = nodeFrom.params[i] * (1 - fraction)
-                        + nodeTo.params[i] * fraction;
+            for (int i = 0; i < nodeFrom.mParams.length; i++) {
+                mParams[i] = nodeFrom.mParams[i] * (1 - fraction)
+                        + nodeTo.mParams[i] * fraction;
             }
         }
 

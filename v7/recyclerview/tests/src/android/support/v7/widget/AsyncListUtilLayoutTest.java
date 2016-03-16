@@ -76,13 +76,8 @@ public class AsyncListUtilLayoutTest extends BaseRecyclerViewInstrumentationTest
         mDataCallback.expectTilesInRange(rangeStart, rangeSize);
         mAdapter.expectItemsInRange(rangeStart, rangeSize);
 
-        runTestOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                mAsyncListUtil = new AsyncListUtil<String>(
-                        String.class, TILE_SIZE, mDataCallback, mViewCallback);
-            }
-        });
+        mAsyncListUtil = new AsyncListUtil<String>(String.class, TILE_SIZE, mDataCallback,
+                mViewCallback);
 
         mRecyclerView.addOnScrollListener(new RecyclerView.OnScrollListener() {
             @Override

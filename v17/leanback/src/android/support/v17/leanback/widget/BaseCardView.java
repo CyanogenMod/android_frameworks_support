@@ -18,7 +18,6 @@ package android.support.v17.leanback.widget;
 
 import android.content.Context;
 import android.content.res.TypedArray;
-import android.graphics.drawable.Drawable;
 import android.support.v17.leanback.R;
 import android.util.AttributeSet;
 import android.util.Log;
@@ -155,14 +154,6 @@ public class BaseCardView extends FrameLayout {
 
         try {
             mCardType = a.getInteger(R.styleable.lbBaseCardView_cardType, CARD_TYPE_MAIN_ONLY);
-            Drawable cardForeground = a.getDrawable(R.styleable.lbBaseCardView_cardForeground);
-            if (cardForeground != null) {
-                setForeground(cardForeground);
-            }
-            Drawable cardBackground = a.getDrawable(R.styleable.lbBaseCardView_cardBackground);
-            if (cardBackground != null) {
-                setBackground(cardBackground);
-            }
             mInfoVisibility = a.getInteger(R.styleable.lbBaseCardView_infoVisibility,
                     CARD_REGION_VISIBLE_ACTIVATED);
             mExtraVisibility = a.getInteger(R.styleable.lbBaseCardView_extraVisibility,

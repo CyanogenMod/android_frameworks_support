@@ -76,8 +76,7 @@ import android.view.ViewGroup;
  * the method {@link #getItemPosition(Object)}.</p>
  */
 public abstract class PagerAdapter {
-    private final DataSetObservable mObservable = new DataSetObservable();
-    private DataSetObserver mViewPagerObserver;
+    private DataSetObservable mObservable = new DataSetObservable();
 
     public static final int POSITION_UNCHANGED = -1;
     public static final int POSITION_NONE = -2;
@@ -274,11 +273,6 @@ public abstract class PagerAdapter {
      * and associated views should update.
      */
     public void notifyDataSetChanged() {
-        synchronized (this) {
-            if (mViewPagerObserver != null) {
-                mViewPagerObserver.onChanged();
-            }
-        }
         mObservable.notifyChanged();
     }
 
@@ -298,12 +292,6 @@ public abstract class PagerAdapter {
      */
     public void unregisterDataSetObserver(DataSetObserver observer) {
         mObservable.unregisterObserver(observer);
-    }
-
-    void setViewPagerObserver(DataSetObserver observer) {
-        synchronized (this) {
-            mViewPagerObserver = observer;
-        }
     }
 
     /**

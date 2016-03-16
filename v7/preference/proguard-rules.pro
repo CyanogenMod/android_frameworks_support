@@ -13,9 +13,5 @@
 # limitations under the License.
 
 # Preference objects are inflated via reflection
--keep public class android.support.v7.preference.Preference {
-    public <init>(android.content.Context, android.util.AttributeSet);
-}
--keep public class * extends android.support.v7.preference.Preference {
-    public <init>(android.content.Context, android.util.AttributeSet);
-}
+-keep public class * extends android.support.v7.preference.Preference
+

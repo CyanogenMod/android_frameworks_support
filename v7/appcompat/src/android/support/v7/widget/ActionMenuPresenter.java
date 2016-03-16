@@ -26,15 +26,16 @@ import android.support.v4.graphics.drawable.DrawableCompat;
 import android.support.v4.view.ActionProvider;
 import android.support.v4.view.GravityCompat;
 import android.support.v7.appcompat.R;
-import android.support.v7.transition.ActionBarTransition;
-import android.support.v7.view.ActionBarPolicy;
-import android.support.v7.view.menu.ActionMenuItemView;
-import android.support.v7.view.menu.BaseMenuPresenter;
-import android.support.v7.view.menu.MenuBuilder;
-import android.support.v7.view.menu.MenuItemImpl;
-import android.support.v7.view.menu.MenuPopupHelper;
-import android.support.v7.view.menu.MenuView;
-import android.support.v7.view.menu.SubMenuBuilder;
+import android.support.v7.internal.transition.ActionBarTransition;
+import android.support.v7.internal.view.ActionBarPolicy;
+import android.support.v7.internal.view.menu.ActionMenuItemView;
+import android.support.v7.internal.view.menu.BaseMenuPresenter;
+import android.support.v7.internal.view.menu.MenuBuilder;
+import android.support.v7.internal.view.menu.MenuItemImpl;
+import android.support.v7.internal.view.menu.MenuPopupHelper;
+import android.support.v7.internal.view.menu.MenuView;
+import android.support.v7.internal.view.menu.SubMenuBuilder;
+import android.support.v7.internal.widget.TintImageView;
 import android.util.SparseBooleanArray;
 import android.view.MenuItem;
 import android.view.SoundEffectConstants;
@@ -46,8 +47,10 @@ import java.util.ArrayList;
 
 /**
  * MenuPresenter for building action menus as seen in the action bar and action modes.
+ *
+ * @hide
  */
-class ActionMenuPresenter extends BaseMenuPresenter
+public class ActionMenuPresenter extends BaseMenuPresenter
         implements ActionProvider.SubUiVisibilityListener {
 
     private static final String TAG = "ActionMenuPresenter";
@@ -603,8 +606,7 @@ class ActionMenuPresenter extends BaseMenuPresenter
         };
     }
 
-    private class OverflowMenuButton extends AppCompatImageView
-            implements ActionMenuView.ActionMenuChildView {
+    private class OverflowMenuButton extends TintImageView implements ActionMenuView.ActionMenuChildView {
         private final float[] mTempPts = new float[2];
 
         public OverflowMenuButton(Context context) {
@@ -702,9 +704,7 @@ class ActionMenuPresenter extends BaseMenuPresenter
         @Override
         public void onDismiss() {
             super.onDismiss();
-            if (mMenu != null) {
-                mMenu.close();
-            }
+            mMenu.close();
             mOverflowPopup = null;
         }
     }

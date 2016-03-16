@@ -25,6 +25,7 @@ import android.support.annotation.Nullable;
 import android.support.v4.content.ContextCompat;
 import android.support.v4.widget.TintableCompoundButton;
 import android.support.v7.appcompat.R;
+import android.support.v7.internal.widget.TintManager;
 import android.util.AttributeSet;
 import android.widget.RadioButton;
 
@@ -43,7 +44,7 @@ import android.widget.RadioButton;
  */
 public class AppCompatRadioButton extends RadioButton implements TintableCompoundButton {
 
-    private AppCompatDrawableManager mDrawableManager;
+    private TintManager mTintManager;
     private AppCompatCompoundButtonHelper mCompoundButtonHelper;
 
     public AppCompatRadioButton(Context context) {
@@ -56,8 +57,8 @@ public class AppCompatRadioButton extends RadioButton implements TintableCompoun
 
     public AppCompatRadioButton(Context context, AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
-        mDrawableManager = AppCompatDrawableManager.get();
-        mCompoundButtonHelper = new AppCompatCompoundButtonHelper(this, mDrawableManager);
+        mTintManager = TintManager.get(context);
+        mCompoundButtonHelper = new AppCompatCompoundButtonHelper(this, mTintManager);
         mCompoundButtonHelper.loadFromAttributes(attrs, defStyleAttr);
     }
 
@@ -71,8 +72,8 @@ public class AppCompatRadioButton extends RadioButton implements TintableCompoun
 
     @Override
     public void setButtonDrawable(@DrawableRes int resId) {
-        setButtonDrawable(mDrawableManager != null
-                ? mDrawableManager.getDrawable(getContext(), resId)
+        setButtonDrawable(mTintManager != null
+                ? mTintManager.getDrawable(resId)
                 : ContextCompat.getDrawable(getContext(), resId));
     }
 

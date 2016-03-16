@@ -14,12 +14,13 @@
      limitations under the License.
 -->
 <animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:drawable="@drawable/vector_drawable_progress_bar" >
+    xmlns:auto="http://schemas.android.com/apk/res-auto"
+    auto:drawable="@drawable/vector_drawable_progress_bar" >
 
     <target
-        android:name="pie1"
-        android:animation="@anim/trim_path_animation_progress_bar" />
+        auto:name="pie1"
+        auto:animation="@anim/trim_path_animation_progress_bar" />
     <target
-        android:name="root_bar"
-        android:animation="@anim/alpha_animation_progress_bar" />
+        auto:name="root_bar"
+        auto:animation="@anim/alpha_animation_progress_bar" />
 </animated-vector>

@@ -89,8 +89,7 @@ class DrawableWrapperDonut extends Drawable implements Drawable.Callback, Drawab
 
     @Override
     public boolean isStateful() {
-        final ColorStateList tintList = isCompatTintEnabled() ? mTintList : null;
-        return (tintList != null && tintList.isStateful()) || mDrawable.isStateful();
+        return (mTintList != null && mTintList.isStateful()) || mDrawable.isStateful();
     }
 
     @Override
@@ -189,38 +188,30 @@ class DrawableWrapperDonut extends Drawable implements Drawable.Callback, Drawab
     }
 
     @Override
-    public void setCompatTint(int tint) {
-        setCompatTintList(ColorStateList.valueOf(tint));
+    public void setTint(int tint) {
+        setTintList(ColorStateList.valueOf(tint));
     }
 
     @Override
-    public void setCompatTintList(ColorStateList tint) {
-        if (mTintList != tint) {
-            mTintList = tint;
-            updateTint(getState());
-        }
+    public void setTintList(ColorStateList tint) {
+        mTintList = tint;
+        updateTint(getState());
     }
 
     @Override
-    public void setCompatTintMode(PorterDuff.Mode tintMode) {
-        if (mTintMode != tintMode) {
-            mTintMode = tintMode;
-            updateTint(getState());
-        }
+    public void setTintMode(PorterDuff.Mode tintMode) {
+        mTintMode = tintMode;
+        updateTint(getState());
     }
 
     private boolean updateTint(int[] state) {
-        if (!isCompatTintEnabled()) {
-            // If compat tinting is not enabled, fail fast
-            return false;
-        }
-
         if (mTintList != null && mTintMode != null) {
             final int color = mTintList.getColorForState(state, mTintList.getDefaultColor());
-            if (!mColorFilterSet || color != mCurrentColor || mTintMode != mCurrentMode) {
-                setColorFilter(color, mTintMode);
+            final PorterDuff.Mode mode = mTintMode;
+            if (!mColorFilterSet || color != mCurrentColor || mode != mCurrentMode) {
+                setColorFilter(color, mode);
                 mCurrentColor = color;
-                mCurrentMode = mTintMode;
+                mCurrentMode = mode;
                 mColorFilterSet = true;
                 return true;
             }
@@ -245,26 +236,13 @@ class DrawableWrapperDonut extends Drawable implements Drawable.Callback, Drawab
         if (mDrawable != null) {
             mDrawable.setCallback(null);
         }
-        mDrawable = null;
-
-        if (drawable != null) {
-            // Copy over the bounds from the drawable
-            setBounds(drawable.getBounds());
-            // Set ourselves as the callback for invalidations
-            drawable.setCallback(this);
-        } else {
-            // Clear our bounds
-            setBounds(0, 0, 0, 0);
-        }
 
         mDrawable = drawable;
 
+        if (drawable != null) {
+            drawable.setCallback(this);
+        }
         // Invalidate ourselves
         invalidateSelf();
-    }
-
-    protected boolean isCompatTintEnabled() {
-        // It's enabled by default on Donut
-        return true;
     }
 }

@@ -28,10 +28,8 @@ import android.support.annotation.ColorInt;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.design.R;
-import android.support.design.widget.FloatingActionButtonImpl.InternalVisibilityChangedListener;
 import android.support.v4.view.ViewCompat;
 import android.util.AttributeSet;
-import android.util.Log;
 import android.view.View;
 import android.widget.ImageView;
 
@@ -55,30 +53,7 @@ import java.util.List;
  * @attr ref android.support.design.R.styleable#FloatingActionButton_fabSize
  */
 @CoordinatorLayout.DefaultBehavior(FloatingActionButton.Behavior.class)
-public class FloatingActionButton extends VisibilityAwareImageButton {
-
-    private static final String LOG_TAG = "FloatingActionButton";
-
-    /**
-     * Callback to be invoked when the visibility of a FloatingActionButton changes.
-     */
-    public abstract static class OnVisibilityChangedListener {
-        /**
-         * Called when a FloatingActionButton has been
-         * {@link #show(OnVisibilityChangedListener) shown}.
-         *
-         * @param fab the FloatingActionButton that was shown.
-         */
-        public void onShown(FloatingActionButton fab) {}
-
-        /**
-         * Called when a FloatingActionButton has been
-         * {@link #hide(OnVisibilityChangedListener) hidden}.
-         *
-         * @param fab the FloatingActionButton that was hidden.
-         */
-        public void onHidden(FloatingActionButton fab) {}
-    }
+public class FloatingActionButton extends ImageView {
 
     // These values must match those in the attrs declaration
     private static final int SIZE_MINI = 1;
@@ -90,9 +65,8 @@ public class FloatingActionButton extends VisibilityAwareImageButton {
     private int mBorderWidth;
     private int mRippleColor;
     private int mSize;
-    private int mImagePadding;
+    private int mContentPadding;
 
-    private boolean mCompatPadding;
     private final Rect mShadowPadding;
 
     private final FloatingActionButtonImpl mImpl;
@@ -108,13 +82,12 @@ public class FloatingActionButton extends VisibilityAwareImageButton {
     public FloatingActionButton(Context context, AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
 
-        ThemeUtils.checkAppCompatTheme(context);
-
         mShadowPadding = new Rect();
 
         TypedArray a = context.obtainStyledAttributes(attrs,
                 R.styleable.FloatingActionButton, defStyleAttr,
                 R.style.Widget_Design_FloatingActionButton);
+        Drawable background = a.getDrawable(R.styleable.FloatingActionButton_android_background);
         mBackgroundTint = a.getColorStateList(R.styleable.FloatingActionButton_backgroundTint);
         mBackgroundTintMode = parseTintMode(a.getInt(
                 R.styleable.FloatingActionButton_backgroundTintMode, -1), null);
@@ -124,7 +97,6 @@ public class FloatingActionButton extends VisibilityAwareImageButton {
         final float elevation = a.getDimension(R.styleable.FloatingActionButton_elevation, 0f);
         final float pressedTranslationZ = a.getDimension(
                 R.styleable.FloatingActionButton_pressedTranslationZ, 0f);
-        mCompatPadding = a.getBoolean(R.styleable.FloatingActionButton_useCompatPadding, false);
         a.recycle();
 
         final ShadowViewDelegate delegate = new ShadowViewDelegate() {
@@ -136,38 +108,36 @@ public class FloatingActionButton extends VisibilityAwareImageButton {
             @Override
             public void setShadowPadding(int left, int top, int right, int bottom) {
                 mShadowPadding.set(left, top, right, bottom);
-                setPadding(left + mImagePadding, top + mImagePadding,
-                        right + mImagePadding, bottom + mImagePadding);
+
+                setPadding(left + mContentPadding, top + mContentPadding,
+                        right + mContentPadding, bottom + mContentPadding);
             }
 
             @Override
             public void setBackgroundDrawable(Drawable background) {
                 FloatingActionButton.super.setBackgroundDrawable(background);
             }
-
-            @Override
-            public boolean isCompatPaddingEnabled() {
-                return mCompatPadding;
-            }
         };
 
         final int sdk = Build.VERSION.SDK_INT;
         if (sdk >= 21) {
             mImpl = new FloatingActionButtonLollipop(this, delegate);
-        } else if (sdk >= 14) {
-            mImpl = new FloatingActionButtonIcs(this, delegate);
+        } else if (sdk >= 12) {
+            mImpl = new FloatingActionButtonHoneycombMr1(this, delegate);
         } else {
             mImpl = new FloatingActionButtonEclairMr1(this, delegate);
         }
 
-        final int maxImageSize = (int) getResources().getDimension(R.dimen.design_fab_image_size);
-        mImagePadding = (getSizeDimension() - maxImageSize) / 2;
+        final int maxContentSize = (int) getResources().getDimension(
+                R.dimen.design_fab_content_size);
+        mContentPadding = (getSizeDimension() - maxContentSize) / 2;
 
-        mImpl.setBackgroundDrawable(mBackgroundTint, mBackgroundTintMode,
-                mRippleColor, mBorderWidth);
+        mImpl.setBackgroundDrawable(background, mBackgroundTint,
+                mBackgroundTintMode, mRippleColor, mBorderWidth);
         mImpl.setElevation(elevation);
         mImpl.setPressedTranslationZ(pressedTranslationZ);
-        mImpl.updatePadding();
+
+        setClickable(true);
     }
 
     @Override
@@ -193,8 +163,6 @@ public class FloatingActionButton extends VisibilityAwareImageButton {
      * When running on devices with KitKat or below, we draw a fill rather than a ripple.
      *
      * @param color ARGB color to use for the ripple.
-     *
-     * @attr ref android.support.design.R.styleable#FloatingActionButton_rippleColor
      */
     public void setRippleColor(@ColorInt int color) {
         if (mRippleColor != color) {
@@ -228,6 +196,7 @@ public class FloatingActionButton extends VisibilityAwareImageButton {
         }
     }
 
+
     /**
      * Return the blending mode used to apply the tint to the background
      * drawable, if specified.
@@ -258,40 +227,19 @@ public class FloatingActionButton extends VisibilityAwareImageButton {
     }
 
     @Override
-    public void setBackgroundDrawable(Drawable background) {
-        Log.i(LOG_TAG, "Setting a custom background is not supported.");
-    }
-
-    @Override
-    public void setBackgroundResource(int resid) {
-        Log.i(LOG_TAG, "Setting a custom background is not supported.");
-    }
-
-    @Override
-    public void setBackgroundColor(int color) {
-        Log.i(LOG_TAG, "Setting a custom background is not supported.");
+    public void setBackgroundDrawable(@NonNull Drawable background) {
+        if (mImpl != null) {
+            mImpl.setBackgroundDrawable(
+                    background, mBackgroundTint, mBackgroundTintMode, mRippleColor, mBorderWidth);
+        }
     }
 
     /**
      * Shows the button.
-     * <p>This method will animate the button show if the view has already been laid out.</p>
+     * <p>This method will animate it the button show if the view has already been laid out.</p>
      */
     public void show() {
-        show(null);
-    }
-
-    /**
-     * Shows the button.
-     * <p>This method will animate the button show if the view has already been laid out.</p>
-     *
-     * @param listener the listener to notify when this view is shown
-     */
-    public void show(@Nullable final OnVisibilityChangedListener listener) {
-        show(listener, true);
-    }
-
-    private void show(OnVisibilityChangedListener listener, boolean fromUser) {
-        mImpl.show(wrapOnVisibilityChangedListener(listener), fromUser);
+        mImpl.show();
     }
 
     /**
@@ -299,71 +247,7 @@ public class FloatingActionButton extends VisibilityAwareImageButton {
      * <p>This method will animate the button hide if the view has already been laid out.</p>
      */
     public void hide() {
-        hide(null);
-    }
-
-    /**
-     * Hides the button.
-     * <p>This method will animate the button hide if the view has already been laid out.</p>
-     *
-     * @param listener the listener to notify when this view is hidden
-     */
-    public void hide(@Nullable OnVisibilityChangedListener listener) {
-        hide(listener, true);
-    }
-
-    private void hide(@Nullable OnVisibilityChangedListener listener, boolean fromUser) {
-        mImpl.hide(wrapOnVisibilityChangedListener(listener), fromUser);
-    }
-
-    /**
-     * Set whether FloatingActionButton should add inner padding on platforms Lollipop and after,
-     * to ensure consistent dimensions on all platforms.
-     *
-     * @param useCompatPadding true if FloatingActionButton is adding inner padding on platforms
-     *                         Lollipop and after, to ensure consistent dimensions on all platforms.
-     *
-     * @attr ref android.support.design.R.styleable#FloatingActionButton_useCompatPadding
-     * @see #getUseCompatPadding()
-     */
-    public void setUseCompatPadding(boolean useCompatPadding) {
-        if (mCompatPadding != useCompatPadding) {
-            mCompatPadding = useCompatPadding;
-            mImpl.onCompatShadowChanged();
-        }
-    }
-
-    /**
-     * Returns whether FloatingActionButton will add inner padding on platforms Lollipop and after.
-     *
-     * @return true if FloatingActionButton is adding inner padding on platforms Lollipop and after,
-     * to ensure consistent dimensions on all platforms.
-     *
-     * @attr ref android.support.design.R.styleable#FloatingActionButton_useCompatPadding
-     * @see #setUseCompatPadding(boolean)
-     */
-    public boolean getUseCompatPadding() {
-        return mCompatPadding;
-    }
-
-    @Nullable
-    private InternalVisibilityChangedListener wrapOnVisibilityChangedListener(
-            @Nullable final OnVisibilityChangedListener listener) {
-        if (listener == null) {
-            return null;
-        }
-
-        return new InternalVisibilityChangedListener() {
-            @Override
-            public void onShown() {
-                listener.onShown(FloatingActionButton.this);
-            }
-
-            @Override
-            public void onHidden() {
-                listener.onHidden(FloatingActionButton.this);
-            }
-        };
+        mImpl.hide();
     }
 
     final int getSizeDimension() {
@@ -377,18 +261,6 @@ public class FloatingActionButton extends VisibilityAwareImageButton {
     }
 
     @Override
-    protected void onAttachedToWindow() {
-        super.onAttachedToWindow();
-        mImpl.onAttachedToWindow();
-    }
-
-    @Override
-    protected void onDetachedFromWindow() {
-        super.onDetachedFromWindow();
-        mImpl.onDetachedFromWindow();
-    }
-
-    @Override
     protected void drawableStateChanged() {
         super.drawableStateChanged();
         mImpl.onDrawableStateChanged(getDrawableState());
@@ -399,33 +271,6 @@ public class FloatingActionButton extends VisibilityAwareImageButton {
     public void jumpDrawablesToCurrentState() {
         super.jumpDrawablesToCurrentState();
         mImpl.jumpDrawableToCurrentState();
-    }
-
-    /**
-     * Return in {@code rect} the bounds of the actual floating action button content in view-local
-     * coordinates. This is defined as anything within any visible shadow.
-     *
-     * @return true if this view actually has been laid out and has a content rect, else false.
-     */
-    public boolean getContentRect(@NonNull Rect rect) {
-        if (ViewCompat.isLaidOut(this)) {
-            rect.set(0, 0, getWidth(), getHeight());
-            rect.left += mShadowPadding.left;
-            rect.top += mShadowPadding.top;
-            rect.right -= mShadowPadding.right;
-            rect.bottom -= mShadowPadding.bottom;
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-    /**
-     * Returns the FloatingActionButton's background, minus any compatible shadow implementation.
-     */
-    @NonNull
-    public Drawable getContentBackground() {
-        return mImpl.getContentBackground();
     }
 
     private static int resolveAdjustedSize(int desiredSize, int measureSpec) {
@@ -479,8 +324,6 @@ public class FloatingActionButton extends VisibilityAwareImageButton {
         // because we can use view translation properties which greatly simplifies the code.
         private static final boolean SNACKBAR_BEHAVIOR_ENABLED = Build.VERSION.SDK_INT >= 11;
 
-        private ValueAnimatorCompat mFabTranslationYAnimator;
-        private float mFabTranslationY;
         private Rect mTmpRect;
 
         @Override
@@ -503,6 +346,24 @@ public class FloatingActionButton extends VisibilityAwareImageButton {
             return false;
         }
 
+        @Override
+        public void onDependentViewRemoved(CoordinatorLayout parent, FloatingActionButton child,
+                View dependency) {
+            if (dependency instanceof Snackbar.SnackbarLayout) {
+                // If the removed view is a SnackbarLayout, we will animate back to our normal
+                // position
+                if (ViewCompat.getTranslationY(child) != 0f) {
+                    ViewCompat.animate(child)
+                            .translationY(0f)
+                            .scaleX(1f)
+                            .scaleY(1f)
+                            .alpha(1f)
+                            .setInterpolator(AnimationUtils.FAST_OUT_SLOW_IN_INTERPOLATOR)
+                            .setListener(null);
+                }
+            }
+        }
+
         private boolean updateFabVisibility(CoordinatorLayout parent,
                 AppBarLayout appBarLayout, FloatingActionButton child) {
             final CoordinatorLayout.LayoutParams lp =
@@ -510,11 +371,6 @@ public class FloatingActionButton extends VisibilityAwareImageButton {
             if (lp.getAnchorId() != appBarLayout.getId()) {
                 // The anchor ID doesn't match the dependency, so we won't automatically
                 // show/hide the FAB
-                return false;
-            }
-
-            if (child.getUserSetVisibility() != VISIBLE) {
-                // The view isn't set to be visible so skip changing it's visibility
                 return false;
             }
 
@@ -528,57 +384,22 @@ public class FloatingActionButton extends VisibilityAwareImageButton {
 
             if (rect.bottom <= appBarLayout.getMinimumHeightForVisibleOverlappingContent()) {
                 // If the anchor's bottom is below the seam, we'll animate our FAB out
-                child.hide(null, false);
+                child.hide();
             } else {
                 // Else, we'll animate our FAB back in
-                child.show(null, false);
+                child.show();
             }
             return true;
         }
 
         private void updateFabTranslationForSnackbar(CoordinatorLayout parent,
-                final FloatingActionButton fab, View snackbar) {
+                FloatingActionButton fab, View snackbar) {
             if (fab.getVisibility() != View.VISIBLE) {
                 return;
             }
 
-            final float targetTransY = getFabTranslationYForSnackbar(parent, fab);
-            if (mFabTranslationY == targetTransY) {
-                // We're already at (or currently animating to) the target value, return...
-                return;
-            }
-
-            final float currentTransY = ViewCompat.getTranslationY(fab);
-
-            // Make sure that any current animation is cancelled
-            if (mFabTranslationYAnimator != null && mFabTranslationYAnimator.isRunning()) {
-                mFabTranslationYAnimator.cancel();
-            }
-
-            if (Math.abs(currentTransY - targetTransY) > (fab.getHeight() * 0.667f)) {
-                // If the FAB will be travelling by more than 2/3 of it's height, let's animate
-                // it instead
-                if (mFabTranslationYAnimator == null) {
-                    mFabTranslationYAnimator = ViewUtils.createAnimator();
-                    mFabTranslationYAnimator.setInterpolator(
-                            AnimationUtils.FAST_OUT_SLOW_IN_INTERPOLATOR);
-                    mFabTranslationYAnimator.setUpdateListener(
-                            new ValueAnimatorCompat.AnimatorUpdateListener() {
-                                @Override
-                                public void onAnimationUpdate(ValueAnimatorCompat animator) {
-                                    ViewCompat.setTranslationY(fab,
-                                            animator.getAnimatedFloatValue());
-                                }
-                            });
-                }
-                mFabTranslationYAnimator.setFloatValues(currentTransY, targetTransY);
-                mFabTranslationYAnimator.start();
-            } else {
-                // Now update the translation Y
-                ViewCompat.setTranslationY(fab, targetTransY);
-            }
-
-            mFabTranslationY = targetTransY;
+            final float translationY = getFabTranslationYForSnackbar(parent, fab);
+            ViewCompat.setTranslationY(fab, translationY);
         }
 
         private float getFabTranslationYForSnackbar(CoordinatorLayout parent,
@@ -648,28 +469,5 @@ public class FloatingActionButton extends VisibilityAwareImageButton {
                 fab.offsetLeftAndRight(offsetLR);
             }
         }
-    }
-
-    /**
-     * Returns the backward compatible elevation of the FloatingActionButton.
-     *
-     * @return the backward compatible elevation in pixels.
-     * @attr ref android.support.design.R.styleable#FloatingActionButton_elevation
-     * @see #setFloatingActionButtonElevation(float)
-     */
-    public float getFloatingActionButtonElevation() {
-        return mImpl.getElevation();
-    }
-
-    /**
-     * Updates the backward compatible elevation of the FloatingActionButton.
-     *
-     * @param elevation The backward compatible elevation in pixels.
-     * @attr ref android.support.design.R.styleable#FloatingActionButton_elevation
-     * @see #getFloatingActionButtonElevation()
-     * @see #setUseCompatPadding(boolean)
-     */
-    public void setFloatingActionButtonElevation(float elevation) {
-        mImpl.setElevation(elevation);
     }
 }

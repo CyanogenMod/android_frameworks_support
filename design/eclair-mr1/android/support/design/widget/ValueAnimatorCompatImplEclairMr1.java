@@ -147,11 +147,6 @@ class ValueAnimatorCompatImplEclairMr1 extends ValueAnimatorCompat.Impl {
         }
     }
 
-    @Override
-    public long getDuration() {
-        return mDuration;
-    }
-
     private void update() {
         if (mIsRunning) {
             // Update the animated fraction

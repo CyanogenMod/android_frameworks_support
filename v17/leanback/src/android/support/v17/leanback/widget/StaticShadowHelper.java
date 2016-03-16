@@ -34,7 +34,7 @@ final class StaticShadowHelper {
      */
     static interface ShadowHelperVersionImpl {
         public void prepareParent(ViewGroup parent);
-        public Object addStaticShadow(ViewGroup shadowContainer);
+        public Object addStaticShadow(ViewGroup shadowContainer, boolean roundedCorners);
         public void setShadowFocusLevel(Object impl, float level);
     }
 
@@ -48,7 +48,7 @@ final class StaticShadowHelper {
         }
 
         @Override
-        public Object addStaticShadow(ViewGroup shadowContainer) {
+        public Object addStaticShadow(ViewGroup shadowContainer, boolean roundedCorners) {
             // do nothing
             return null;
         }
@@ -69,7 +69,8 @@ final class StaticShadowHelper {
         }
 
         @Override
-        public Object addStaticShadow(ViewGroup shadowContainer) {
+        public Object addStaticShadow(ViewGroup shadowContainer, boolean roundedCorners) {
+            // Static shadows are always rounded
             return ShadowHelperJbmr2.addShadow(shadowContainer);
         }
 
@@ -104,8 +105,8 @@ final class StaticShadowHelper {
         mImpl.prepareParent(parent);
     }
 
-    public Object addStaticShadow(ViewGroup shadowContainer) {
-        return mImpl.addStaticShadow(shadowContainer);
+    public Object addStaticShadow(ViewGroup shadowContainer, boolean roundedCorners) {
+        return mImpl.addStaticShadow(shadowContainer, roundedCorners);
     }
 
     public void setShadowFocusLevel(Object impl, float level) {

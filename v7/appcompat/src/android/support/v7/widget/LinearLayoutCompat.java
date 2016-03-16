@@ -25,6 +25,8 @@ import android.support.annotation.IntDef;
 import android.support.v4.view.GravityCompat;
 import android.support.v4.view.ViewCompat;
 import android.support.v7.appcompat.R;
+import android.support.v7.internal.widget.TintTypedArray;
+import android.support.v7.internal.widget.ViewUtils;
 import android.util.AttributeSet;
 import android.view.Gravity;
 import android.view.View;

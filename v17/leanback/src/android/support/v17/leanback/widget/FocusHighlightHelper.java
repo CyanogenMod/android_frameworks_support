@@ -85,7 +85,7 @@ public class FocusHighlightHelper {
                 mWrapper = null;
             }
             mAnimator.setTimeListener(this);
-            if (useDimmer) {
+            if (mWrapper != null && useDimmer) {
                 mDimmer = ColorOverlayDimmer.createDefault(view.getContext());
             } else {
                 mDimmer = null;
@@ -99,16 +99,9 @@ public class FocusHighlightHelper {
             mView.setScaleY(scale);
             if (mWrapper != null) {
                 mWrapper.setShadowFocusLevel(level);
-            } else {
-                ShadowOverlayHelper.setNoneWrapperShadowFocusLevel(mView, level);
-            }
-            if (mDimmer != null) {
-                mDimmer.setActiveLevel(level);
-                int color = mDimmer.getPaint().getColor();
-                if (mWrapper != null) {
-                    mWrapper.setOverlayColor(color);
-                } else {
-                    ShadowOverlayHelper.setNoneWrapperOverlayColor(mView, color);
+                if (mDimmer != null) {
+                    mDimmer.setActiveLevel(level);
+                    mWrapper.setOverlayColor(mDimmer.getPaint().getColor());
                 }
             }
         }

@@ -144,10 +144,7 @@ public class ViewPager extends ViewGroup {
     private int mRestoredCurItem = -1;
     private Parcelable mRestoredAdapterState = null;
     private ClassLoader mRestoredClassLoader = null;
-
     private Scroller mScroller;
-    private boolean mIsScrollStarted;
-
     private PagerObserver mObserver;
 
     private int mPageMargin;
@@ -391,10 +388,6 @@ public class ViewPager extends ViewGroup {
     @Override
     protected void onDetachedFromWindow() {
         removeCallbacks(mEndScrollRunnable);
-        // To be on the safe side, abort the scroller
-        if ((mScroller != null) && !mScroller.isFinished()) {
-            mScroller.abortAnimation();
-        }
         super.onDetachedFromWindow();
     }
 
@@ -418,7 +411,7 @@ public class ViewPager extends ViewGroup {
      */
     public void setAdapter(PagerAdapter adapter) {
         if (mAdapter != null) {
-            mAdapter.setViewPagerObserver(null);
+            mAdapter.unregisterDataSetObserver(mObserver);
             mAdapter.startUpdate(this);
             for (int i = 0; i < mItems.size(); i++) {
                 final ItemInfo ii = mItems.get(i);
@@ -439,7 +432,7 @@ public class ViewPager extends ViewGroup {
             if (mObserver == null) {
                 mObserver = new PagerObserver();
             }
-            mAdapter.setViewPagerObserver(mObserver);
+            mAdapter.registerDataSetObserver(mObserver);
             mPopulatePending = false;
             final boolean wasFirstLayout = mFirstLayout;
             mFirstLayout = true;
@@ -836,21 +829,7 @@ public class ViewPager extends ViewGroup {
             setScrollingCacheEnabled(false);
             return;
         }
-
-        int sx;
-        boolean wasScrolling = (mScroller != null) && !mScroller.isFinished();
-        if (wasScrolling) {
-            // We're in the middle of a previously initiated scrolling. Check to see
-            // whether that scrolling has actually started (if we always call getStartX
-            // we can get a stale value from the scroller if it hadn't yet had its first
-            // computeScrollOffset call) to decide what is the current scrolling position.
-            sx = mIsScrollStarted ? mScroller.getCurrX() : mScroller.getStartX();
-            // And abort the current scrolling.
-            mScroller.abortAnimation();
-            setScrollingCacheEnabled(false);
-        } else {
-            sx = getScrollX();
-        }
+        int sx = getScrollX();
         int sy = getScrollY();
         int dx = x - sx;
         int dy = y - sy;
@@ -870,7 +849,7 @@ public class ViewPager extends ViewGroup {
         final float distance = halfWidth + halfWidth *
                 distanceInfluenceForSnapDuration(distanceRatio);
 
-        int duration;
+        int duration = 0;
         velocity = Math.abs(velocity);
         if (velocity > 0) {
             duration = 4 * Math.round(1000 * Math.abs(distance / velocity));
@@ -881,9 +860,6 @@ public class ViewPager extends ViewGroup {
         }
         duration = Math.min(duration, MAX_SETTLE_DURATION);
 
-        // Reset the "scroll started" flag. It will be flipped to true in all places
-        // where we call computeScrollOffset().
-        mIsScrollStarted = false;
         mScroller.startScroll(sx, sy, dx, dy, duration);
         ViewCompat.postInvalidateOnAnimation(this);
     }
@@ -1666,7 +1642,6 @@ public class ViewPager extends ViewGroup {
 
     @Override
     public void computeScroll() {
-        mIsScrollStarted = true;
         if (!mScroller.isFinished() && mScroller.computeScrollOffset()) {
             int oldX = getScrollX();
             int oldY = getScrollY();
@@ -1847,18 +1822,15 @@ public class ViewPager extends ViewGroup {
         if (needPopulate) {
             // Done with scroll, no longer want to cache view drawing.
             setScrollingCacheEnabled(false);
-            boolean wasScrolling = !mScroller.isFinished();
-            if (wasScrolling) {
-                mScroller.abortAnimation();
-                int oldX = getScrollX();
-                int oldY = getScrollY();
-                int x = mScroller.getCurrX();
-                int y = mScroller.getCurrY();
-                if (oldX != x || oldY != y) {
-                    scrollTo(x, y);
-                    if (x != oldX) {
-                        pageScrolled(x);
-                    }
+            mScroller.abortAnimation();
+            int oldX = getScrollX();
+            int oldY = getScrollY();
+            int x = mScroller.getCurrX();
+            int y = mScroller.getCurrY();
+            if (oldX != x || oldY != y) {
+                scrollTo(x, y);
+                if (x != oldX) {
+                    pageScrolled(x);
                 }
             }
         }
@@ -1906,7 +1878,13 @@ public class ViewPager extends ViewGroup {
         if (action == MotionEvent.ACTION_CANCEL || action == MotionEvent.ACTION_UP) {
             // Release the drag.
             if (DEBUG) Log.v(TAG, "Intercept done!");
-            resetTouch();
+            mIsBeingDragged = false;
+            mIsUnableToDrag = false;
+            mActivePointerId = INVALID_POINTER;
+            if (mVelocityTracker != null) {
+                mVelocityTracker.recycle();
+                mVelocityTracker = null;
+            }
             return false;
         }
 
@@ -1992,7 +1970,6 @@ public class ViewPager extends ViewGroup {
                 mActivePointerId = MotionEventCompat.getPointerId(ev, 0);
                 mIsUnableToDrag = false;
 
-                mIsScrollStarted = true;
                 mScroller.computeScrollOffset();
                 if (mScrollState == SCROLL_STATE_SETTLING &&
                         Math.abs(mScroller.getFinalX() - mScroller.getCurrX()) > mCloseEnough) {
@@ -2074,11 +2051,6 @@ public class ViewPager extends ViewGroup {
             case MotionEvent.ACTION_MOVE:
                 if (!mIsBeingDragged) {
                     final int pointerIndex = MotionEventCompat.findPointerIndex(ev, mActivePointerId);
-                    if (pointerIndex == -1) {
-                        // A child has consumed some touch events and put us into an inconsistent state.
-                        needsInvalidate = resetTouch();
-                        break;
-                    }
                     final float x = MotionEventCompat.getX(ev, pointerIndex);
                     final float xDiff = Math.abs(x - mLastMotionX);
                     final float y = MotionEventCompat.getY(ev, pointerIndex);
@@ -2130,13 +2102,17 @@ public class ViewPager extends ViewGroup {
                             totalDelta);
                     setCurrentItemInternal(nextPage, true, true, initialVelocity);
 
-                    needsInvalidate = resetTouch();
+                    mActivePointerId = INVALID_POINTER;
+                    endDrag();
+                    needsInvalidate = mLeftEdge.onRelease() | mRightEdge.onRelease();
                 }
                 break;
             case MotionEvent.ACTION_CANCEL:
                 if (mIsBeingDragged) {
                     scrollToItem(mCurItem, true, 0, false);
-                    needsInvalidate = resetTouch();
+                    mActivePointerId = INVALID_POINTER;
+                    endDrag();
+                    needsInvalidate = mLeftEdge.onRelease() | mRightEdge.onRelease();
                 }
                 break;
             case MotionEventCompat.ACTION_POINTER_DOWN: {
@@ -2156,14 +2132,6 @@ public class ViewPager extends ViewGroup {
             ViewCompat.postInvalidateOnAnimation(this);
         }
         return true;
-    }
-
-    private boolean resetTouch() {
-        boolean needsInvalidate;
-        mActivePointerId = INVALID_POINTER;
-        endDrag();
-        needsInvalidate = mLeftEdge.onRelease() | mRightEdge.onRelease();
-        return needsInvalidate;
     }
 
     private void requestParentDisallowInterceptTouchEvent(boolean disallowIntercept) {

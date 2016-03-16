@@ -17,6 +17,3 @@
     public <init>(android.content.Context, android.util.AttributeSet);
     public <init>();
 }
-
-# Make sure we keep annotations for CoordinatorLayout's DefaultBehavior
--keepattributes *Annotation*

@@ -22,16 +22,12 @@ class ViewPropertyAnimatorCompatKK {
 
     public static void setUpdateListener(final View view,
             final ViewPropertyAnimatorUpdateListener listener) {
-        ValueAnimator.AnimatorUpdateListener wrapped = null;
-        if (listener != null) {
-            wrapped = new ValueAnimator.AnimatorUpdateListener() {
-                @Override
-                public void onAnimationUpdate(ValueAnimator valueAnimator) {
-                    listener.onAnimationUpdate(view);
-                }
-            };
-        }
-        view.animate().setUpdateListener(wrapped);
+        view.animate().setUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+            @Override
+            public void onAnimationUpdate(ValueAnimator valueAnimator) {
+                listener.onAnimationUpdate(view);
+            }
+        });
     }
 
 }

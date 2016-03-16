@@ -28,11 +28,11 @@ import android.graphics.drawable.Drawable;
  */
 public interface DrawableWrapper {
 
-    void setCompatTint(int tint);
+    void setTint(int tint);
 
-    void setCompatTintList(ColorStateList tint);
+    void setTintList(ColorStateList tint);
 
-    void setCompatTintMode(PorterDuff.Mode tintMode);
+    void setTintMode(PorterDuff.Mode tintMode);
 
     Drawable getWrappedDrawable();
 

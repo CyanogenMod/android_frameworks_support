@@ -34,8 +34,6 @@ LOCAL_AAPT_FLAGS := \
 LOCAL_JAR_EXCLUDE_FILES := none
 include $(BUILD_STATIC_JAVA_LIBRARY)
 
-support_module_src_files := $(LOCAL_SRC_FILES)
-
 # -----------------------------------------------------------------------
 
 #  A helper sub-library that makes direct use of API 21.
@@ -43,11 +41,8 @@ include $(CLEAR_VARS)
 LOCAL_MODULE := android-support-v17-preference-leanback-api21
 LOCAL_SDK_VERSION := 21
 LOCAL_SRC_FILES := $(call all-java-files-under, api21)
-LOCAL_JAVA_LIBRARIES := android-support-v17-preference-leanback-res \
-        android-support-v17-leanback
+LOCAL_JAVA_LIBRARIES := android-support-v17-preference-leanback-res
 include $(BUILD_STATIC_JAVA_LIBRARY)
-
-support_module_src_files += $(LOCAL_SRC_FILES)
 
 # Here is the final static library that apps can link against.
 # The R class is automatically excluded from the generated library.
@@ -70,12 +65,11 @@ LOCAL_JAVA_LIBRARIES := \
         android-support-v17-preference-leanback-res
 include $(BUILD_STATIC_JAVA_LIBRARY)
 
-support_module_src_files += $(LOCAL_SRC_FILES)
-
 # API Check
 # ---------------------------------------------
 support_module := $(LOCAL_MODULE)
 support_module_api_dir := $(LOCAL_PATH)/api
+support_module_src_files := $(LOCAL_SRC_FILES)
 support_module_java_libraries := $(LOCAL_JAVA_LIBRARIES)
 support_module_java_packages := android.support.v17.preference
 include $(SUPPORT_API_CHECK)

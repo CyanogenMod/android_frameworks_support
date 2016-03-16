@@ -22,8 +22,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.os.Bundle;
-import android.support.annotation.ColorInt;
-import android.support.annotation.DrawableRes;
 import android.support.annotation.IntDef;
 import android.support.annotation.Nullable;
 import android.support.annotation.StringDef;
@@ -801,7 +799,7 @@ public final class ContentRecommendation
          * @param iconResourceId An integer id for the badge icon resource.
          * @return The Builder object, for chaining.
          */
-        public Builder setBadgeIcon(@DrawableRes int iconResourceId) {
+        public Builder setBadgeIcon(int iconResourceId) {
             mBuilderBadgeIconId = iconResourceId;
             return this;
         }
@@ -825,7 +823,7 @@ public final class ContentRecommendation
          * @param color An integer value representing the accent color for this recommendation.
          * @return The Builder object, for chaining.
          */
-        public Builder setColor(@ColorInt int color) {
+        public Builder setColor(int color) {
             mBuilderColor = color;
             return this;
         }

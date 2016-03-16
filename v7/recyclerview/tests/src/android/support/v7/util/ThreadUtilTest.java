@@ -19,23 +19,27 @@ package android.support.v7.util;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.CoreMatchers.*;
 
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+
 import android.os.Looper;
-import android.support.annotation.UiThread;
+import android.support.test.runner.AndroidJUnit4;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
-public class ThreadUtilTest extends BaseThreadedTest {
+@RunWith(AndroidJUnit4.class)
+public class ThreadUtilTest {
     Map<String, LockedObject> results = new HashMap<>();
 
     ThreadUtil.MainThreadCallback<Integer> mMainThreadProxy;
     ThreadUtil.BackgroundCallback<Integer> mBackgroundProxy;
 
-    @Override
-    @UiThread
-    public void setUpUi() {
+    @Before
+    public void setup() {
         ThreadUtil<Integer> threadUtil = new MessageThreadUtil<>();
 
         mMainThreadProxy = threadUtil.getMainThreadProxy(
@@ -89,15 +93,15 @@ public class ThreadUtilTest extends BaseThreadedTest {
                 });
     }
 
+    @Test
     public void testUpdateItemCount() throws InterruptedException {
         initWait("updateItemCount");
-        // In this test and below the calls to mMainThreadProxy are not really made from the UI
-        // thread. That's OK since the message queue inside mMainThreadProxy is synchronized.
         mMainThreadProxy.updateItemCount(7, 9);
         Object[] data = waitFor("updateItemCount");
         assertThat(data, is(new Object[]{7, 9}));
     }
 
+    @Test
     public void testAddTile() throws InterruptedException {
         initWait("addTile");
         TileList.Tile<Integer> tile = new TileList.Tile<Integer>(Integer.class, 10);
@@ -106,6 +110,7 @@ public class ThreadUtilTest extends BaseThreadedTest {
         assertThat(data, is(new Object[]{3, tile}));
     }
 
+    @Test
     public void testRemoveTile() throws InterruptedException {
         initWait("removeTile");
         mMainThreadProxy.removeTile(1, 2);
@@ -113,15 +118,15 @@ public class ThreadUtilTest extends BaseThreadedTest {
         assertThat(data, is(new Object[]{1, 2}));
     }
 
+    @Test
     public void testRefresh() throws InterruptedException {
         initWait("refresh");
-        // In this test and below the calls to mBackgroundProxy are not really made from the worker
-        // thread. That's OK since the message queue inside mBackgroundProxy is synchronized.
         mBackgroundProxy.refresh(2);
         Object[] data = waitFor("refresh");
         assertThat(data, is(new Object[]{2}));
     }
 
+    @Test
     public void testRangeUpdate() throws InterruptedException {
         initWait("updateRange");
         mBackgroundProxy.updateRange(10, 20, 5, 25, 1);
@@ -129,6 +134,7 @@ public class ThreadUtilTest extends BaseThreadedTest {
         assertThat(data, is(new Object[] {10, 20, 5, 25, 1}));
     }
 
+    @Test
     public void testLoadTile() throws InterruptedException {
         initWait("loadTile");
         mBackgroundProxy.loadTile(2, 1);
@@ -136,6 +142,7 @@ public class ThreadUtilTest extends BaseThreadedTest {
         assertThat(data, is(new Object[]{2, 1}));
     }
 
+    @Test
     public void testRecycleTile() throws InterruptedException {
         initWait("recycleTile");
         TileList.Tile<Integer> tile = new TileList.Tile<Integer>(Integer.class, 10);

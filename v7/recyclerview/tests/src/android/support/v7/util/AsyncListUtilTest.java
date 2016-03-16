@@ -16,13 +16,22 @@
 
 package android.support.v7.util;
 
-import android.support.annotation.UiThread;
+import android.support.test.runner.AndroidJUnit4;
 import android.util.SparseBooleanArray;
+
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-public class AsyncListUtilTest extends BaseThreadedTest {
+import static junit.framework.Assert.assertEquals;
+import static junit.framework.Assert.assertTrue;
+
+@RunWith(AndroidJUnit4.class)
+public class AsyncListUtilTest {
 
     private static final int TILE_SIZE = 10;
 
@@ -31,37 +40,34 @@ public class AsyncListUtilTest extends BaseThreadedTest {
 
     AsyncListUtil<String> mAsyncListUtil;
 
-    @Override
+
+    @Before
     public void setUp() throws Exception {
         mDataCallback = new TestDataCallback();
         mViewCallback = new TestViewCallback();
 
         mDataCallback.expectTiles(0, 10, 20);
-        super.setUp();
+        mAsyncListUtil = new AsyncListUtil<String>(String.class, TILE_SIZE, mDataCallback,
+                mViewCallback);
         mDataCallback.waitForTiles("initial load");
     }
 
-    @Override
-    @UiThread
-    protected void setUpUi() {
-        mAsyncListUtil = new AsyncListUtil<String>(
-                String.class, TILE_SIZE, mDataCallback, mViewCallback);
-    }
-
-    @Override
+    @After
     public void tearDown() throws Exception {
         /// Wait a little extra to catch spurious messages.
         new CountDownLatch(1).await(500, TimeUnit.MILLISECONDS);
     }
 
-    public void testWithNoPreload() throws Throwable {
+    @Test
+    public void testWithNoPreload() throws InterruptedException {
         scrollAndExpectTiles(10, "scroll to 10", 30);
         scrollAndExpectTiles(25, "scroll to 25", 40);
         scrollAndExpectTiles(45, "scroll to 45", 50, 60);
         scrollAndExpectTiles(70, "scroll to 70", 70, 80, 90);
     }
 
-    public void testWithPreload() throws Throwable {
+    @Test
+    public void testWithPreload() throws InterruptedException {
         mViewCallback.mStartPreload = 5;
         mViewCallback.mEndPreload = 15;
         scrollAndExpectTiles(50, "scroll down a lot", 40, 50, 60, 70, 80);
@@ -72,7 +78,8 @@ public class AsyncListUtilTest extends BaseThreadedTest {
         scrollAndExpectTiles(40, "scroll up a little, no new tiles loaded");
     }
 
-    public void testTileCaching() throws Throwable {
+    @Test
+    public void testTileCaching() throws InterruptedException {
         scrollAndExpectTiles(25, "next screen", 30, 40);
 
         scrollAndExpectTiles(0, "back at top, no new page loads");
@@ -83,34 +90,35 @@ public class AsyncListUtilTest extends BaseThreadedTest {
         scrollAndExpectTiles(0, "scroll back to top, all pages should reload", 0, 10, 20);
     }
 
-    public void testDataRefresh() throws Throwable {
+    @Test
+    public void testDataRefresh() throws InterruptedException {
         mViewCallback.expectDataSetChanged(40);
         mDataCallback.expectTiles(0, 10, 20);
-        refreshOnUiThread();
+        mAsyncListUtil.refresh();
         mViewCallback.waitForDataSetChanged("increasing item count");
         mDataCallback.waitForTiles("increasing item count");
 
         mViewCallback.expectDataSetChanged(15);
         mDataCallback.expectTiles(0, 10);
-        refreshOnUiThread();
+        mAsyncListUtil.refresh();
         mViewCallback.waitForDataSetChanged("decreasing item count");
         mDataCallback.waitForTiles("decreasing item count");
     }
 
-    public void testItemChanged() throws Throwable {
+    @Test
+    public void testItemChanged() throws InterruptedException {
         final int position = 30;
         final int count = 20;
 
-        assertLoadedItemsOnUiThread("no new items should be loaded", 0, position, count);
+        assertEquals("no new items should be loaded", 0, getLoadedItemCount(position, count));
 
         mViewCallback.expectItemRangeChanged(position, count);
         scrollAndExpectTiles(20, "scrolling to missing items", 30, 40);
         mViewCallback.waitForItems();
 
-        assertLoadedItemsOnUiThread("all new items should be loaded", count, position, count);
+        assertEquals("all new items should be loaded", count, getLoadedItemCount(position, count));
     }
 
-    @UiThread
     private int getLoadedItemCount(int startPosition, int itemCount) {
         int loaded = 0;
         for (int i = 0; i < itemCount; i++) {
@@ -122,45 +130,15 @@ public class AsyncListUtilTest extends BaseThreadedTest {
     }
 
     private void scrollAndExpectTiles(int position, String context, int... positions)
-            throws Throwable {
+            throws InterruptedException {
         mDataCallback.expectTiles(positions);
-        scrollOnUiThread(position);
+        mViewCallback.scrollTo(position);
         mDataCallback.waitForTiles(context);
     }
 
     private static void waitForLatch(String context, CountDownLatch latch)
             throws InterruptedException {
         assertTrue("timed out waiting for " + context, latch.await(1, TimeUnit.SECONDS));
-    }
-
-    private void refreshOnUiThread() throws Throwable {
-        runTestOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                mAsyncListUtil.refresh();
-            }
-        });
-    }
-
-    private void assertLoadedItemsOnUiThread(final String message,
-                                             final int expectedCount,
-                                             final int position,
-                                             final int count) throws Throwable {
-        runTestOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                assertEquals(message, expectedCount, getLoadedItemCount(position, count));
-            }
-        });
-    }
-
-    private void scrollOnUiThread(final int position) throws Throwable {
-        runTestOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                mViewCallback.scrollTo(position);
-            }
-        });
     }
 
     private class TestDataCallback extends AsyncListUtil.DataCallback<String> {
@@ -227,7 +205,6 @@ public class AsyncListUtilTest extends BaseThreadedTest {
         }
 
         @Override
-        @UiThread
         public void onDataRefresh() {
             if (mDataRefreshLatch == null) {
                 return;
@@ -262,14 +239,12 @@ public class AsyncListUtilTest extends BaseThreadedTest {
             waitForLatch("onItemChanged", mItemsChangedLatch.mLatch);
         }
 
-        @UiThread
         public void scrollTo(int position) {
             mLastVisibleItem += position - mFirstVisibleItem;
             mFirstVisibleItem = position;
             mAsyncListUtil.onRangeChanged();
         }
 
-        @UiThread
         private void updateViewport() {
             int itemCount = mAsyncListUtil.getItemCount();
             if (mLastVisibleItem < itemCount) {

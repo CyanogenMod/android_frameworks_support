@@ -1040,7 +1040,7 @@ public class StaggeredGridLayoutManager extends RecyclerView.LayoutManager {
         final int mode = View.MeasureSpec.getMode(spec);
         if (mode == View.MeasureSpec.AT_MOST || mode == View.MeasureSpec.EXACTLY) {
             return View.MeasureSpec.makeMeasureSpec(
-                    Math.max(0, View.MeasureSpec.getSize(spec) - startInset - endInset), mode);
+                    View.MeasureSpec.getSize(spec) - startInset - endInset, mode);
         }
         return spec;
     }
@@ -2676,10 +2676,7 @@ public class StaggeredGridLayoutManager extends RecyclerView.LayoutManager {
         }
     }
 
-    /**
-     * @hide
-     */
-    public static class SavedState implements Parcelable {
+    static class SavedState implements Parcelable {
 
         int mAnchorPosition;
         int mVisibleAnchorPosition; // Replacement for span info when spans are invalidated

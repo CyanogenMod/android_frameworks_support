@@ -516,12 +516,6 @@ public class Preference implements Comparable<Preference> {
         } else {
             setEnabledStateOnViews(holder.itemView, true);
         }
-
-        final boolean selectable = isSelectable();
-        holder.itemView.setFocusable(selectable);
-
-        holder.setDividerAllowedAbove(selectable);
-        holder.setDividerAllowedBelow(selectable);
     }
 
     /**
@@ -755,11 +749,9 @@ public class Preference implements Comparable<Preference> {
      * @param visible Set false if this preference should be hidden from the list.
      */
     public final void setVisible(boolean visible) {
-        if (mVisible != visible) {
-            mVisible = visible;
-            if (mListener != null) {
-                mListener.onPreferenceVisibilityChange(this);
-            }
+        mVisible = visible;
+        if (mListener != null) {
+            mListener.onPreferenceVisibilityChange(this);
         }
     }
 

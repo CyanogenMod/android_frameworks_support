@@ -30,8 +30,6 @@
 
 //#define LOG_API ALOG
 #define LOG_API(...)
-#define LOG_ERR(...) __android_log_print(ANDROID_LOG_ERROR, "RenderScript JNI", __VA_ARGS__);
-#define RS_JNI_VERSION 2301
 
 #define NELEM(m) (sizeof(m) / sizeof((m)[0]))
 
@@ -271,31 +269,23 @@ static dispatchTable dispatchTab;
 // Incremental Support lib
 static dispatchTable dispatchTabInc;
 
-static jboolean nLoadSO(JNIEnv *_env, jobject _this, jboolean useNative, jint targetApi, jstring libPath) {
+static jboolean nLoadSO(JNIEnv *_env, jobject _this, jboolean useNative, jint targetApi) {
     void* handle = NULL;
     if (useNative) {
         handle = dlopen("libRS.so", RTLD_LAZY | RTLD_LOCAL);
     } else {
-        // For API 9+, dlopen the full path of libRSSupport.
-        if (libPath != NULL) {
-            const char * libPathJni = _env->GetStringUTFChars(libPath, JNI_FALSE);
-            handle = dlopen(libPathJni, RTLD_LAZY | RTLD_LOCAL);
-            _env->ReleaseStringUTFChars(libPath, libPathJni);
-        } else {
-            handle = dlopen("libRSSupport.so", RTLD_LAZY | RTLD_LOCAL);
-        }
+        handle = dlopen("libRSSupport.so", RTLD_LAZY | RTLD_LOCAL);
     }
     if (handle == NULL) {
-        LOG_ERR("couldn't dlopen %s; librsjni version: %d", dlerror(), RS_JNI_VERSION);
+        LOG_API("couldn't dlopen %s, %s", filename, dlerror());
         return false;
     }
 
     if (loadSymbols(handle, dispatchTab, targetApi) == false) {
-        LOG_ERR("Dispatch table init failed! librsjni version: %d", RS_JNI_VERSION);
-        dlclose(handle);
+        LOG_API("%s init failed!", filename);
         return false;
     }
-    LOG_API("Successfully loaded runtime");
+    LOG_API("Successfully loaded %s", filename);
     return true;
 }
 
@@ -304,11 +294,11 @@ static jboolean nLoadIOSO(JNIEnv *_env, jobject _this) {
     void* handleIO = NULL;
     handleIO = dlopen("libRSSupportIO.so", RTLD_LAZY | RTLD_LOCAL);
     if (handleIO == NULL) {
-        LOG_ERR("Couldn't load libRSSupportIO.so, librsjni version: %d", RS_JNI_VERSION);
+        LOG_API("Couldn't load libRSSupportIO.so");
         return false;
     }
     if (loadIOSuppSyms(handleIO, ioDispatch) == false) {
-        LOG_ERR("libRSSupportIO init failed! librsjni version: %d", RS_JNI_VERSION);
+        LOG_API("libRSSupportIO init failed!");
         return false;
     }
     return true;
@@ -377,26 +367,26 @@ nClosureCreate(JNIEnv *_env, jobject _this, jlong con, jlong kernelID,
   RsScriptFieldID* depFieldIDs;
 
   if (fieldIDs_length != values_length || values_length != sizes_length) {
-      LOG_ERR("Unmatched field IDs, values, and sizes in closure creation.");
+      LOG_API("Unmatched field IDs, values, and sizes in closure creation.");
       goto exit;
   }
 
   numValues = (size_t)fieldIDs_length;
 
   if (depClosures_length != depFieldIDs_length) {
-      LOG_ERR("Unmatched closures and field IDs for dependencies in closure creation.");
+      LOG_API("Unmatched closures and field IDs for dependencies in closure creation.");
       goto exit;
   }
 
   numDependencies = (size_t)depClosures_length;
 
   if (numDependencies > numValues) {
-      LOG_ERR("Unexpected number of dependencies in closure creation");
+      LOG_API("Unexpected number of dependencies in closure creation");
       goto exit;
   }
 
   if (numValues > RS_CLOSURE_MAX_NUMBER_ARGS_AND_BINDINGS) {
-      LOG_ERR("Too many arguments or globals in closure creation");
+      LOG_API("Too many arguments or globals in closure creation");
       goto exit;
   }
 
@@ -474,14 +464,14 @@ nInvokeClosureCreate(JNIEnv *_env, jobject _this, jlong con, jlong invokeID,
   uintptr_t* values;
 
   if (fieldIDs_length != values_length || values_length != sizes_length) {
-      LOG_ERR("Unmatched field IDs, values, and sizes in closure creation.");
+      LOG_API("Unmatched field IDs, values, and sizes in closure creation.");
       goto exit;
   }
 
   numValues = (size_t) fieldIDs_length;
 
   if (numValues > RS_CLOSURE_MAX_NUMBER_ARGS_AND_BINDINGS) {
-      LOG_ERR("Too many arguments or globals in closure creation");
+      LOG_API("Too many arguments or globals in closure creation");
       goto exit;
   }
 
@@ -546,7 +536,7 @@ nScriptGroup2Create(JNIEnv *_env, jobject _this, jlong con, jstring name,
   RsClosure* closures;
 
   if (numClosures > (jsize) RS_SCRIPT_GROUP_MAX_NUMBER_CLOSURES) {
-    LOG_ERR("Too many closures in script group");
+    LOG_API("Too many closures in script group");
     goto exit;
   }
 
@@ -1637,7 +1627,6 @@ nScriptForEachClippedV(JNIEnv *_env, jobject _this, jlong con, jlong incCon,
     _env->ReleaseByteArrayElements(params, ptr, JNI_ABORT);
 }
 
-
 // -----------------------------------
 
 static jlong
@@ -1842,25 +1831,16 @@ nSystemGetPointerSize(JNIEnv *_env, jobject _this) {
 
 // ---------------------------------------------------------------------------
 // For Incremental Intrinsic Support
-static jboolean nIncLoadSO(JNIEnv *_env, jobject _this, jint deviceApi, jstring libPath) {
+static jboolean nIncLoadSO(JNIEnv *_env, jobject _this, jint deviceApi) {
     void* handle = NULL;
-    // For API 9+, dlopen the full path of libRSSupport.
-    if (libPath != NULL) {
-        const char * libPathJni = _env->GetStringUTFChars(libPath, JNI_FALSE);
-        handle = dlopen(libPathJni, RTLD_LAZY | RTLD_LOCAL);
-        _env->ReleaseStringUTFChars(libPath, libPathJni);
-    } else {
-        handle = dlopen("libRSSupport.so", RTLD_LAZY | RTLD_LOCAL);
-    }
-
+    handle = dlopen("libRSSupport.so", RTLD_LAZY | RTLD_LOCAL);
     if (handle == NULL) {
-        LOG_ERR("couldn't dlopen %s;  librsjni version: %d", dlerror(), RS_JNI_VERSION);
+        LOG_API("couldn't dlopen %s, %s", filename, dlerror());
         return false;
     }
 
     if (loadSymbols(handle, dispatchTabInc, deviceApi) == false) {
-        LOG_ERR("Dispatch Table init failed! librsjni version: %d", RS_JNI_VERSION);
-        dlclose(handle);
+        LOG_API("%s init failed!", filename);
         return false;
     }
     LOG_API("Successfully loaded %s", filename);
@@ -1966,7 +1946,7 @@ nIncAllocationCreateTyped(JNIEnv *_env, jobject _this, jlong con, jlong incCon, 
 static const char *classPathName = "android/support/v8/renderscript/RenderScript";
 
 static JNINativeMethod methods[] = {
-{"nLoadSO",                        "(ZILjava/lang/String;)Z",                 (bool*)nLoadSO },
+{"nLoadSO",                        "(ZI)Z",                                   (bool*)nLoadSO },
 {"nLoadIOSO",                      "()Z",                                     (bool*)nLoadIOSO },
 {"nDeviceCreate",                  "()J",                                     (void*)nDeviceCreate },
 {"nDeviceDestroy",                 "(J)V",                                    (void*)nDeviceDestroy },
@@ -2064,7 +2044,7 @@ static JNINativeMethod methods[] = {
 {"rsnSystemGetPointerSize",          "()I",                                   (void*)nSystemGetPointerSize },
 
 // Entry points for Inc libRSSupport
-{"nIncLoadSO",                       "(ILjava/lang/String;)Z",                (bool*)nIncLoadSO },
+{"nIncLoadSO",                       "(I)Z",                                  (bool*)nIncLoadSO },
 {"nIncDeviceCreate",                 "()J",                                   (void*)nIncDeviceCreate },
 {"nIncDeviceDestroy",                "(J)V",                                  (void*)nIncDeviceDestroy },
 {"rsnIncContextCreate",              "(JIII)J",                               (void*)nIncContextCreate },

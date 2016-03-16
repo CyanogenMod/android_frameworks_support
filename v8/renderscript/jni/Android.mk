@@ -50,6 +50,6 @@ LOCAL_MODULE:= librsjni
 LOCAL_MODULE_TAGS := optional
 LOCAL_REQUIRED_MODULES := libRSSupport
 
-LOCAL_LDFLAGS += -ldl -llog
+LOCAL_LDFLAGS += -ldl
 
 include $(BUILD_SHARED_LIBRARY)

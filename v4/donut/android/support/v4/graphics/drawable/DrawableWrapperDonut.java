@@ -248,6 +248,7 @@ class DrawableWrapperDonut extends Drawable implements Drawable.Callback, Drawab
         mDrawable = null;
 
         if (drawable != null) {
+            mDrawable = drawable;
             // Copy over the bounds from the drawable
             setBounds(drawable.getBounds());
             // Set ourselves as the callback for invalidations
@@ -256,8 +257,6 @@ class DrawableWrapperDonut extends Drawable implements Drawable.Callback, Drawab
             // Clear our bounds
             setBounds(0, 0, 0, 0);
         }
-
-        mDrawable = drawable;
 
         // Invalidate ourselves
         invalidateSelf();

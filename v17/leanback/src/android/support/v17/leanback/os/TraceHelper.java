@@ -16,23 +16,30 @@
 package android.support.v17.leanback.os;
 
 import android.os.Build;
+import android.support.annotation.RestrictTo;
 import android.support.v17.leanback.os.TraceHelperJbmr2;
+
+import static android.support.annotation.RestrictTo.Scope.GROUP_ID;
 
 
 /**
  * Helper for systrace events.
  * @hide
  */
+@RestrictTo(GROUP_ID)
 public final class TraceHelper {
 
     final static TraceHelperVersionImpl sImpl;
 
-    static interface TraceHelperVersionImpl {
-        public void beginSection(String section);
-        public void endSection();
+    interface TraceHelperVersionImpl {
+        void beginSection(String section);
+        void endSection();
     }
 
     private static final class TraceHelperStubImpl implements TraceHelperVersionImpl {
+        TraceHelperStubImpl() {
+        }
+
         @Override
         public void beginSection(String section) {
         }
@@ -43,6 +50,9 @@ public final class TraceHelper {
     }
 
     private static final class TraceHelperJbmr2Impl implements TraceHelperVersionImpl {
+        TraceHelperJbmr2Impl() {
+        }
+
         @Override
         public void beginSection(String section) {
             TraceHelperJbmr2.beginSection(section);

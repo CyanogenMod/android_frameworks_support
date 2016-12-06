@@ -23,6 +23,7 @@ import android.os.Parcelable;
 import android.os.SystemClock;
 import android.support.annotation.IntDef;
 import android.support.annotation.Nullable;
+import android.support.annotation.RestrictTo;
 import android.text.TextUtils;
 import android.view.KeyEvent;
 
@@ -30,6 +31,8 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.util.ArrayList;
 import java.util.List;
+
+import static android.support.annotation.RestrictTo.Scope.GROUP_ID;
 
 /**
  * Playback state for a {@link MediaSessionCompat}. This includes a state like
@@ -41,6 +44,7 @@ public final class PlaybackStateCompat implements Parcelable {
     /**
      * @hide
      */
+    @RestrictTo(GROUP_ID)
     @IntDef(flag=true, value={ACTION_STOP, ACTION_PAUSE, ACTION_PLAY, ACTION_REWIND,
             ACTION_SKIP_TO_PREVIOUS, ACTION_SKIP_TO_NEXT, ACTION_FAST_FORWARD, ACTION_SET_RATING,
             ACTION_SEEK_TO, ACTION_PLAY_PAUSE, ACTION_PLAY_FROM_MEDIA_ID, ACTION_PLAY_FROM_SEARCH,
@@ -52,6 +56,7 @@ public final class PlaybackStateCompat implements Parcelable {
     /**
      * @hide
      */
+    @RestrictTo(GROUP_ID)
     @IntDef({ACTION_STOP, ACTION_PAUSE, ACTION_PLAY, ACTION_REWIND, ACTION_SKIP_TO_PREVIOUS,
             ACTION_SKIP_TO_NEXT, ACTION_FAST_FORWARD, ACTION_PLAY_PAUSE})
     @Retention(RetentionPolicy.SOURCE)
@@ -186,6 +191,7 @@ public final class PlaybackStateCompat implements Parcelable {
     /**
      * @hide
      */
+    @RestrictTo(GROUP_ID)
     @IntDef({STATE_NONE, STATE_STOPPED, STATE_PAUSED, STATE_PLAYING, STATE_FAST_FORWARDING,
             STATE_REWINDING, STATE_BUFFERING, STATE_ERROR, STATE_CONNECTING,
             STATE_SKIPPING_TO_PREVIOUS, STATE_SKIPPING_TO_NEXT, STATE_SKIPPING_TO_QUEUE_ITEM})
@@ -337,20 +343,20 @@ public final class PlaybackStateCompat implements Parcelable {
         return KeyEvent.KEYCODE_UNKNOWN;
     }
 
-    private final int mState;
-    private final long mPosition;
-    private final long mBufferedPosition;
-    private final float mSpeed;
-    private final long mActions;
-    private final CharSequence mErrorMessage;
-    private final long mUpdateTime;
-    private List<PlaybackStateCompat.CustomAction> mCustomActions;
-    private final long mActiveItemId;
-    private final Bundle mExtras;
+    final int mState;
+    final long mPosition;
+    final long mBufferedPosition;
+    final float mSpeed;
+    final long mActions;
+    final CharSequence mErrorMessage;
+    final long mUpdateTime;
+    List<PlaybackStateCompat.CustomAction> mCustomActions;
+    final long mActiveItemId;
+    final Bundle mExtras;
 
     private Object mStateObj;
 
-    private PlaybackStateCompat(int state, long position, long bufferedPosition,
+    PlaybackStateCompat(int state, long position, long bufferedPosition,
             float rate, long actions, CharSequence errorMessage, long updateTime,
             List<PlaybackStateCompat.CustomAction> customActions,
             long activeItemId, Bundle extras) {
@@ -366,7 +372,7 @@ public final class PlaybackStateCompat implements Parcelable {
         mExtras = extras;
     }
 
-    private PlaybackStateCompat(Parcel in) {
+    PlaybackStateCompat(Parcel in) {
         mState = in.readInt();
         mPosition = in.readLong();
         mSpeed = in.readFloat();
@@ -638,14 +644,14 @@ public final class PlaybackStateCompat implements Parcelable {
         /**
          * Use {@link PlaybackStateCompat.CustomAction.Builder#build()}.
          */
-        private CustomAction(String action, CharSequence name, int icon, Bundle extras) {
+        CustomAction(String action, CharSequence name, int icon, Bundle extras) {
             mAction = action;
             mName = name;
             mIcon = icon;
             mExtras = extras;
         }
 
-        private CustomAction(Parcel in) {
+        CustomAction(Parcel in) {
             mAction = in.readString();
             mName = TextUtils.CHAR_SEQUENCE_CREATOR.createFromParcel(in);
             mIcon = in.readInt();

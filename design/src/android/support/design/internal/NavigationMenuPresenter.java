@@ -26,6 +26,7 @@ import android.os.Parcelable;
 import android.support.annotation.LayoutRes;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.annotation.RestrictTo;
 import android.support.annotation.StyleRes;
 import android.support.design.R;
 import android.support.v4.view.ViewCompat;
@@ -46,29 +47,32 @@ import android.widget.TextView;
 
 import java.util.ArrayList;
 
+import static android.support.annotation.RestrictTo.Scope.GROUP_ID;
+
 /**
  * @hide
  */
+@RestrictTo(GROUP_ID)
 public class NavigationMenuPresenter implements MenuPresenter {
 
     private static final String STATE_HIERARCHY = "android:menu:list";
     private static final String STATE_ADAPTER = "android:menu:adapter";
 
     private NavigationMenuView mMenuView;
-    private LinearLayout mHeaderLayout;
+    LinearLayout mHeaderLayout;
 
     private Callback mCallback;
-    private MenuBuilder mMenu;
+    MenuBuilder mMenu;
     private int mId;
 
-    private NavigationMenuAdapter mAdapter;
-    private LayoutInflater mLayoutInflater;
+    NavigationMenuAdapter mAdapter;
+    LayoutInflater mLayoutInflater;
 
-    private int mTextAppearance;
-    private boolean mTextAppearanceSet;
-    private ColorStateList mTextColor;
-    private ColorStateList mIconTintList;
-    private Drawable mItemBackground;
+    int mTextAppearance;
+    boolean mTextAppearanceSet;
+    ColorStateList mTextColor;
+    ColorStateList mIconTintList;
+    Drawable mItemBackground;
 
     /**
      * Padding to be inserted at the top of the list to avoid the first menu item
@@ -79,7 +83,7 @@ public class NavigationMenuPresenter implements MenuPresenter {
     /**
      * Padding for separators between items
      */
-    private int mPaddingSeparator;
+    int mPaddingSeparator;
 
     @Override
     public void initForMenu(Context context, MenuBuilder menu) {
@@ -318,7 +322,7 @@ public class NavigationMenuPresenter implements MenuPresenter {
     /**
      * Handles click events for the menu items. The items has to be {@link NavigationMenuItemView}.
      */
-    private final View.OnClickListener mOnClickListener = new View.OnClickListener() {
+    final View.OnClickListener mOnClickListener = new View.OnClickListener() {
 
         @Override
         public void onClick(View v) {
@@ -403,12 +407,12 @@ public class NavigationMenuPresenter implements MenuPresenter {
                     NavigationMenuItemView itemView = (NavigationMenuItemView) holder.itemView;
                     itemView.setIconTintList(mIconTintList);
                     if (mTextAppearanceSet) {
-                        itemView.setTextAppearance(itemView.getContext(), mTextAppearance);
+                        itemView.setTextAppearance(mTextAppearance);
                     }
                     if (mTextColor != null) {
                         itemView.setTextColor(mTextColor);
                     }
-                    itemView.setBackgroundDrawable(mItemBackground != null ?
+                    ViewCompat.setBackground(itemView, mItemBackground != null ?
                             mItemBackground.getConstantState().newDrawable() : null);
                     NavigationMenuTextItem item = (NavigationMenuTextItem) mItems.get(position);
                     itemView.setNeedsEmptyIcon(item.needsEmptyIcon);
@@ -612,7 +616,7 @@ public class NavigationMenuPresenter implements MenuPresenter {
 
         boolean needsEmptyIcon;
 
-        private NavigationMenuTextItem(MenuItemImpl item) {
+        NavigationMenuTextItem(MenuItemImpl item) {
             mMenuItem = item;
         }
 
@@ -650,6 +654,8 @@ public class NavigationMenuPresenter implements MenuPresenter {
      * Header (not subheader) items.
      */
     private static class NavigationMenuHeaderItem implements NavigationMenuItem {
+        NavigationMenuHeaderItem() {
+        }
         // The actual content is hold by NavigationMenuPresenter#mHeaderLayout.
     }
 

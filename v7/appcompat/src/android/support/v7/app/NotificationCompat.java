@@ -16,6 +16,8 @@
 
 package android.support.v7.app;
 
+import static android.support.annotation.RestrictTo.Scope.GROUP_ID;
+
 import android.app.Notification;
 import android.app.PendingIntent;
 import android.content.Context;
@@ -25,6 +27,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.Parcel;
+import android.support.annotation.RestrictTo;
 import android.support.v4.app.BundleCompat;
 import android.support.v4.app.NotificationBuilderWithBuilderAccessor;
 import android.support.v4.media.session.MediaSessionCompat;
@@ -169,23 +172,15 @@ public class NotificationCompat extends android.support.v4.app.NotificationCompa
                     ? b.getColor()
                     : color;
         }
-        CharSequence senderText = bidiWrapIfNotSpanned(bidi, replyName);
+        CharSequence senderText = bidi.unicodeWrap(replyName);
         sb.append(senderText);
         sb.setSpan(makeFontColorSpan(color),
                 sb.length() - senderText.length(),
                 sb.length(),
                 Spanned.SPAN_EXCLUSIVE_EXCLUSIVE /* flags */);
         CharSequence text = m.getText() == null ? "" : m.getText();
-        sb.append("  ").append(bidiWrapIfNotSpanned(bidi, text));
+        sb.append("  ").append(bidi.unicodeWrap(text));
         return sb;
-    }
-
-    private static CharSequence bidiWrapIfNotSpanned(BidiFormatter bidi, CharSequence replyName) {
-        // Unfortunately bidiFormatter doesn't support CharSequences in support
-        if (replyName instanceof Spanned) {
-            return replyName;
-        }
-        return bidi.unicodeWrap(replyName.toString());
     }
 
     private static TextAppearanceSpan makeFontColorSpan(int color) {
@@ -382,6 +377,7 @@ public class NotificationCompat extends android.support.v4.app.NotificationCompa
          *
          * @hide
          */
+        @RestrictTo(GROUP_ID)
         @Override
         protected CharSequence resolveText() {
             if (mStyle instanceof MessagingStyle) {
@@ -401,6 +397,7 @@ public class NotificationCompat extends android.support.v4.app.NotificationCompa
          *
          * @hide
          */
+        @RestrictTo(GROUP_ID)
         @Override
         protected CharSequence resolveTitle() {
             if (mStyle instanceof MessagingStyle) {
@@ -417,6 +414,7 @@ public class NotificationCompat extends android.support.v4.app.NotificationCompa
         /**
          * @hide
          */
+        @RestrictTo(GROUP_ID)
         @Override
         protected BuilderExtender getExtender() {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
@@ -434,6 +432,9 @@ public class NotificationCompat extends android.support.v4.app.NotificationCompa
     }
 
     private static class IceCreamSandwichExtender extends BuilderExtender {
+
+        IceCreamSandwichExtender() {
+        }
 
         @Override
         public Notification build(android.support.v4.app.NotificationCompat.Builder b,
@@ -453,6 +454,9 @@ public class NotificationCompat extends android.support.v4.app.NotificationCompa
 
     private static class JellybeanExtender extends BuilderExtender {
 
+        JellybeanExtender() {
+        }
+
         @Override
         public Notification build(android.support.v4.app.NotificationCompat.Builder b,
                 NotificationBuilderWithBuilderAccessor builder) {
@@ -469,6 +473,9 @@ public class NotificationCompat extends android.support.v4.app.NotificationCompa
     }
 
     private static class LollipopExtender extends BuilderExtender {
+
+        LollipopExtender() {
+        }
 
         @Override
         public Notification build(android.support.v4.app.NotificationCompat.Builder b,

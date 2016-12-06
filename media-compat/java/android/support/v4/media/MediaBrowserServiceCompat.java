@@ -16,6 +16,7 @@
 
 package android.support.v4.media;
 
+import static android.support.annotation.RestrictTo.Scope.GROUP_ID;
 import static android.support.v4.media.MediaBrowserProtocol.CLIENT_MSG_ADD_SUBSCRIPTION;
 import static android.support.v4.media.MediaBrowserProtocol.CLIENT_MSG_CONNECT;
 import static android.support.v4.media.MediaBrowserProtocol.CLIENT_MSG_DISCONNECT;
@@ -55,6 +56,7 @@ import android.os.RemoteException;
 import android.support.annotation.IntDef;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.annotation.RestrictTo;
 import android.support.v4.app.BundleCompat;
 import android.support.v4.media.session.MediaSessionCompat;
 import android.support.v4.os.BuildCompat;
@@ -96,8 +98,8 @@ import java.util.List;
  * </pre>
  */
 public abstract class MediaBrowserServiceCompat extends Service {
-    private static final String TAG = "MBServiceCompat";
-    private static final boolean DEBUG = Log.isLoggable(TAG, Log.DEBUG);
+    static final String TAG = "MBServiceCompat";
+    static final boolean DEBUG = Log.isLoggable(TAG, Log.DEBUG);
 
     private MediaBrowserServiceImpl mImpl;
 
@@ -111,18 +113,22 @@ public abstract class MediaBrowserServiceCompat extends Service {
      *
      * @hide
      */
+    @RestrictTo(GROUP_ID)
     public static final String KEY_MEDIA_ITEM = "media_item";
 
-    private static final int RESULT_FLAG_OPTION_NOT_HANDLED = 0x00000001;
+    static final int RESULT_FLAG_OPTION_NOT_HANDLED = 0x00000001;
+    static final int RESULT_FLAG_ON_LOAD_ITEM_NOT_IMPLEMENTED = 0x00000002;
 
     /** @hide */
+    @RestrictTo(GROUP_ID)
     @Retention(RetentionPolicy.SOURCE)
-    @IntDef(flag=true, value = { RESULT_FLAG_OPTION_NOT_HANDLED })
+    @IntDef(flag=true, value = { RESULT_FLAG_OPTION_NOT_HANDLED,
+            RESULT_FLAG_ON_LOAD_ITEM_NOT_IMPLEMENTED })
     private @interface ResultFlags { }
 
-    private final ArrayMap<IBinder, ConnectionRecord> mConnections = new ArrayMap<>();
-    private ConnectionRecord mCurConnection;
-    private final ServiceHandler mHandler = new ServiceHandler();
+    final ArrayMap<IBinder, ConnectionRecord> mConnections = new ArrayMap<>();
+    ConnectionRecord mCurConnection;
+    final ServiceHandler mHandler = new ServiceHandler();
     MediaSessionCompat.Token mSession;
 
     interface MediaBrowserServiceImpl {
@@ -331,9 +337,13 @@ public abstract class MediaBrowserServiceCompat extends Service {
                     = new Result<MediaBrowserCompat.MediaItem>(itemId) {
                 @Override
                 void onResultSent(MediaBrowserCompat.MediaItem item, @ResultFlags int flags) {
-                    Parcel parcelItem = Parcel.obtain();
-                    item.writeToParcel(parcelItem, 0);
-                    resultWrapper.sendResult(parcelItem);
+                    if (item == null) {
+                        resultWrapper.sendResult(null);
+                    } else {
+                        Parcel parcelItem = Parcel.obtain();
+                        item.writeToParcel(parcelItem, 0);
+                        resultWrapper.sendResult(parcelItem);
+                    }
                 }
 
                 @Override
@@ -399,6 +409,9 @@ public abstract class MediaBrowserServiceCompat extends Service {
 
     private final class ServiceHandler extends Handler {
         private final ServiceBinderImpl mServiceBinderImpl = new ServiceBinderImpl();
+
+        ServiceHandler() {
+        }
 
         @Override
         public void handleMessage(Message msg) {
@@ -470,6 +483,9 @@ public abstract class MediaBrowserServiceCompat extends Service {
         ServiceCallbacks callbacks;
         BrowserRoot root;
         HashMap<String, List<Pair<IBinder, Bundle>>> subscriptions = new HashMap();
+
+        ConnectionRecord() {
+        }
     }
 
     /**
@@ -539,6 +555,9 @@ public abstract class MediaBrowserServiceCompat extends Service {
     }
 
     private class ServiceBinderImpl {
+        ServiceBinderImpl() {
+        }
+
         public void connect(final String pkg, final int uid, final Bundle rootHints,
                 final ServiceCallbacks callbacks) {
 
@@ -862,14 +881,18 @@ public abstract class MediaBrowserServiceCompat extends Service {
      * result.detach} may be called before returning from this function, and
      * then {@link Result#sendResult result.sendResult} called when the item has
      * been loaded.
-     * <p>
-     * The default implementation sends a null result.
+     * </p><p>
+     * When the given {@code itemId} is invalid, implementations must call
+     * {@link Result#sendResult result.sendResult} with {@code null}.
+     * </p><p>
+     * The default implementation will invoke {@link MediaBrowserCompat.ItemCallback#onError}.
      *
      * @param itemId The id for the specific {@link MediaBrowserCompat.MediaItem}.
      * @param result The Result to send the item to, or null if the id is
      *            invalid.
      */
     public void onLoadItem(String itemId, Result<MediaBrowserCompat.MediaItem> result) {
+        result.setFlags(RESULT_FLAG_ON_LOAD_ITEM_NOT_IMPLEMENTED);
         result.sendResult(null);
     }
 
@@ -959,7 +982,7 @@ public abstract class MediaBrowserServiceCompat extends Service {
     /**
      * Return whether the given package is one of the ones that is owned by the uid.
      */
-    private boolean isValidPackage(String pkg, int uid) {
+    boolean isValidPackage(String pkg, int uid) {
         if (pkg == null) {
             return false;
         }
@@ -977,7 +1000,7 @@ public abstract class MediaBrowserServiceCompat extends Service {
     /**
      * Save the subscription and if it is a new subscription send the results.
      */
-    private void addSubscription(String id, ConnectionRecord connection, IBinder token,
+    void addSubscription(String id, ConnectionRecord connection, IBinder token,
             Bundle options) {
         // Save the subscription
         List<Pair<IBinder, Bundle>> callbackList = connection.subscriptions.get(id);
@@ -999,7 +1022,7 @@ public abstract class MediaBrowserServiceCompat extends Service {
     /**
      * Remove the subscription.
      */
-    private boolean removeSubscription(String id, ConnectionRecord connection, IBinder token) {
+    boolean removeSubscription(String id, ConnectionRecord connection, IBinder token) {
         if (token == null) {
             return connection.subscriptions.remove(id) != null;
         }
@@ -1025,7 +1048,7 @@ public abstract class MediaBrowserServiceCompat extends Service {
      * <p>
      * Callers must make sure that this connection is still connected.
      */
-    private void performLoadChildren(final String parentId, final ConnectionRecord connection,
+    void performLoadChildren(final String parentId, final ConnectionRecord connection,
             final Bundle options) {
         final Result<List<MediaBrowserCompat.MediaItem>> result
                 = new Result<List<MediaBrowserCompat.MediaItem>>(parentId) {
@@ -1066,7 +1089,7 @@ public abstract class MediaBrowserServiceCompat extends Service {
         }
     }
 
-    private List<MediaBrowserCompat.MediaItem> applyOptions(List<MediaBrowserCompat.MediaItem> list,
+    List<MediaBrowserCompat.MediaItem> applyOptions(List<MediaBrowserCompat.MediaItem> list,
             final Bundle options) {
         if (list == null) {
             return null;
@@ -1087,12 +1110,16 @@ public abstract class MediaBrowserServiceCompat extends Service {
         return list.subList(fromIndex, toIndex);
     }
 
-    private void performLoadItem(String itemId, ConnectionRecord connection,
+    void performLoadItem(String itemId, ConnectionRecord connection,
             final ResultReceiver receiver) {
         final Result<MediaBrowserCompat.MediaItem> result =
                 new Result<MediaBrowserCompat.MediaItem>(itemId) {
                     @Override
                     void onResultSent(MediaBrowserCompat.MediaItem item, @ResultFlags int flags) {
+                        if ((flags & RESULT_FLAG_ON_LOAD_ITEM_NOT_IMPLEMENTED) != 0) {
+                            receiver.send(-1, null);
+                            return;
+                        }
                         Bundle bundle = new Bundle();
                         bundle.putParcelable(KEY_MEDIA_ITEM, item);
                         receiver.send(0, bundle);

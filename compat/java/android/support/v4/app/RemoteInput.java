@@ -19,7 +19,10 @@ package android.support.v4.app;
 import android.content.Intent;
 import android.os.Build;
 import android.os.Bundle;
+import android.support.annotation.RestrictTo;
 import android.util.Log;
+
+import static android.support.annotation.RestrictTo.Scope.GROUP_ID;
 
 /**
  * Helper for using the {@link android.app.RemoteInput} API
@@ -40,7 +43,7 @@ public final class RemoteInput extends RemoteInputCompatBase.RemoteInput {
     private final boolean mAllowFreeFormInput;
     private final Bundle mExtras;
 
-    private RemoteInput(String resultKey, CharSequence label, CharSequence[] choices,
+    RemoteInput(String resultKey, CharSequence label, CharSequence[] choices,
             boolean allowFreeFormInput, Bundle extras) {
         this.mResultKey = resultKey;
         this.mLabel = label;
@@ -265,6 +268,7 @@ public final class RemoteInput extends RemoteInputCompatBase.RemoteInput {
     }
 
     /** @hide */
+    @RestrictTo(GROUP_ID)
     public static final Factory FACTORY = new Factory() {
         @Override
         public RemoteInput build(String resultKey,

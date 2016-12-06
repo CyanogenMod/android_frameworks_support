@@ -41,7 +41,6 @@ import android.support.v17.leanback.R;
 /**
  * Slide distance toward/from a edge.
  * This is a limited Slide implementation for KitKat without propagation support.
- * @hide
  */
 class SlideKitkat extends Visibility {
     private static final String TAG = "SlideKitkat";
@@ -64,6 +63,9 @@ class SlideKitkat extends Visibility {
     }
 
     private static abstract class CalculateSlideHorizontal implements CalculateSlide {
+        CalculateSlideHorizontal() {
+        }
+
         @Override
         public float getHere(View view) {
             return view.getTranslationX();
@@ -76,6 +78,9 @@ class SlideKitkat extends Visibility {
     }
 
     private static abstract class CalculateSlideVertical implements CalculateSlide {
+        CalculateSlideVertical() {
+        }
+
         @Override
         public float getHere(View view) {
             return view.getTranslationY();

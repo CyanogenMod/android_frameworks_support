@@ -24,6 +24,7 @@ import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.os.Parcelable;
+import android.support.annotation.RestrictTo;
 import android.support.v4.view.NestedScrollingParent;
 import android.support.v4.view.NestedScrollingParentHelper;
 import android.support.v4.view.ViewCompat;
@@ -41,12 +42,15 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
 
+import static android.support.annotation.RestrictTo.Scope.GROUP_ID;
+
 /**
  * Special layout for the containing of an overlay action bar (and its content) to correctly handle
  * fitting system windows when the content has request that its layout ignore them.
  *
  * @hide
  */
+@RestrictTo(GROUP_ID)
 public class ActionBarOverlayLayout extends ViewGroup implements DecorContentParent,
         NestedScrollingParent {
     private static final String TAG = "ActionBarOverlayLayout";
@@ -57,7 +61,7 @@ public class ActionBarOverlayLayout extends ViewGroup implements DecorContentPar
 
     // The main UI elements that we handle the layout of.
     private ContentFrameLayout mContent;
-    private ActionBarContainer mActionBarTop;
+    ActionBarContainer mActionBarTop;
 
     // Some interior UI elements.
     private DecorToolbar mDecorToolbar;
@@ -69,7 +73,7 @@ public class ActionBarOverlayLayout extends ViewGroup implements DecorContentPar
     private boolean mOverlayMode;
     private boolean mHasNonEmbeddedTabs;
     private boolean mHideOnContentScroll;
-    private boolean mAnimatingForFling;
+    boolean mAnimatingForFling;
     private int mHideOnContentScrollReference;
     private int mLastSystemUiVisibility;
     private final Rect mBaseContentInsets = new Rect();
@@ -85,9 +89,9 @@ public class ActionBarOverlayLayout extends ViewGroup implements DecorContentPar
 
     private ScrollerCompat mFlingEstimator;
 
-    private ViewPropertyAnimatorCompat mCurrentActionBarTopAnimator;
+    ViewPropertyAnimatorCompat mCurrentActionBarTopAnimator;
 
-    private final ViewPropertyAnimatorListener mTopAnimatorListener
+    final ViewPropertyAnimatorListener mTopAnimatorListener
             = new ViewPropertyAnimatorListenerAdapter() {
         @Override
         public void onAnimationEnd(View view) {
@@ -565,7 +569,7 @@ public class ActionBarOverlayLayout extends ViewGroup implements DecorContentPar
         ViewCompat.setTranslationY(mActionBarTop, -offset);
     }
 
-    private void haltActionBarHideOffsetAnimations() {
+    void haltActionBarHideOffsetAnimations() {
         removeCallbacks(mRemoveActionBarHideOffset);
         removeCallbacks(mAddActionBarHideOffset);
         if (mCurrentActionBarTopAnimator != null) {

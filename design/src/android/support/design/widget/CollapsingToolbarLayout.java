@@ -30,6 +30,7 @@ import android.support.annotation.IntDef;
 import android.support.annotation.IntRange;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.annotation.RestrictTo;
 import android.support.annotation.StyleRes;
 import android.support.design.R;
 import android.support.v4.content.ContextCompat;
@@ -49,6 +50,7 @@ import android.widget.FrameLayout;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 
+import static android.support.annotation.RestrictTo.Scope.GROUP_ID;
 import static android.support.design.widget.MathUtils.constrain;
 import static android.support.design.widget.ViewUtils.objectEquals;
 
@@ -114,12 +116,12 @@ public class CollapsingToolbarLayout extends FrameLayout {
     private int mExpandedMarginBottom;
 
     private final Rect mTmpRect = new Rect();
-    private final CollapsingTextHelper mCollapsingTextHelper;
+    final CollapsingTextHelper mCollapsingTextHelper;
     private boolean mCollapsingTitleEnabled;
     private boolean mDrawCollapsingTitle;
 
     private Drawable mContentScrim;
-    private Drawable mStatusBarScrim;
+    Drawable mStatusBarScrim;
     private int mScrimAlpha;
     private boolean mScrimsAreShown;
     private ValueAnimatorCompat mScrimAnimator;
@@ -128,9 +130,9 @@ public class CollapsingToolbarLayout extends FrameLayout {
 
     private AppBarLayout.OnOffsetChangedListener mOnOffsetChangedListener;
 
-    private int mCurrentOffset;
+    int mCurrentOffset;
 
-    private WindowInsetsCompat mLastInsets;
+    WindowInsetsCompat mLastInsets;
 
     public CollapsingToolbarLayout(Context context) {
         this(context, null);
@@ -258,7 +260,7 @@ public class CollapsingToolbarLayout extends FrameLayout {
         super.onDetachedFromWindow();
     }
 
-    private WindowInsetsCompat onWindowInsetChanged(final WindowInsetsCompat insets) {
+    WindowInsetsCompat onWindowInsetChanged(final WindowInsetsCompat insets) {
         WindowInsetsCompat newInsets = null;
 
         if (ViewCompat.getFitsSystemWindows(this)) {
@@ -272,7 +274,9 @@ public class CollapsingToolbarLayout extends FrameLayout {
             requestLayout();
         }
 
-        return insets;
+        // Consume the insets. This is done so that child views with fitSystemWindows=true do not
+        // get the default padding functionality from View
+        return insets.consumeSystemWindowInsets();
     }
 
     @Override
@@ -409,20 +413,19 @@ public class CollapsingToolbarLayout extends FrameLayout {
     protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
         super.onLayout(changed, left, top, right, bottom);
 
-        // Update our child view offset helpers
-        for (int i = 0, z = getChildCount(); i < z; i++) {
-            final View child = getChildAt(i);
-
-            if (mLastInsets != null && !ViewCompat.getFitsSystemWindows(child)) {
-                final int insetTop = mLastInsets.getSystemWindowInsetTop();
-                if (child.getTop() < insetTop) {
-                    // If the child isn't set to fit system windows but is drawing within the inset
-                    // offset it down
-                    ViewCompat.offsetTopAndBottom(child, insetTop);
+        if (mLastInsets != null) {
+            // Shift down any views which are not set to fit system windows
+            final int insetTop = mLastInsets.getSystemWindowInsetTop();
+            for (int i = 0, z = getChildCount(); i < z; i++) {
+                final View child = getChildAt(i);
+                if (!ViewCompat.getFitsSystemWindows(child)) {
+                    if (child.getTop() < insetTop) {
+                        // If the child isn't set to fit system windows but is drawing within
+                        // the inset offset it down
+                        ViewCompat.offsetTopAndBottom(child, insetTop);
+                    }
                 }
             }
-
-            getViewOffsetHelper(child).onViewLayout();
         }
 
         // Update the collapsed bounds by getting it's transformed bounds
@@ -453,12 +456,18 @@ public class CollapsingToolbarLayout extends FrameLayout {
                 // Update the expanded bounds
                 mCollapsingTextHelper.setExpandedBounds(
                         isRtl ? mExpandedMarginEnd : mExpandedMarginStart,
-                        mExpandedMarginTop,
+                        mTmpRect.top + mExpandedMarginTop,
                         right - left - (isRtl ? mExpandedMarginStart : mExpandedMarginEnd),
                         bottom - top - mExpandedMarginBottom);
                 // Now recalculate using the new bounds
                 mCollapsingTextHelper.recalculate();
             }
+        }
+
+        // Update our child view offset helpers. This needs to be done after the title has been
+        // setup, so that any Toolbars are in their original position
+        for (int i = 0, z = getChildCount(); i < z; i++) {
+            getViewOffsetHelper(getChildAt(i)).onViewLayout();
         }
 
         // Finally, set our minimum height to enable proper AppBarLayout collapsing
@@ -490,7 +499,7 @@ public class CollapsingToolbarLayout extends FrameLayout {
         return view.getHeight();
     }
 
-    private static ViewOffsetHelper getViewOffsetHelper(View view) {
+    static ViewOffsetHelper getViewOffsetHelper(View view) {
         ViewOffsetHelper offsetHelper = (ViewOffsetHelper) view.getTag(R.id.view_offset_helper);
         if (offsetHelper == null) {
             offsetHelper = new ViewOffsetHelper(view);
@@ -609,7 +618,7 @@ public class CollapsingToolbarLayout extends FrameLayout {
         mScrimAnimator.start();
     }
 
-    private void setScrimAlpha(int alpha) {
+    void setScrimAlpha(int alpha) {
         if (alpha != mScrimAlpha) {
             final Drawable contentScrim = mContentScrim;
             if (contentScrim != null && mToolbar != null) {
@@ -1050,7 +1059,7 @@ public class CollapsingToolbarLayout extends FrameLayout {
      * Returns the amount of visible height in pixels used to define when to trigger a scrim
      * visibility change.
      *
-     * @see #setScrimTriggerOffset(int)
+     * @see #setScrimVisibleHeightTrigger(int)
      */
     public int getScrimVisibleHeightTrigger() {
         if (mScrimVisibleHeightTrigger >= 0) {
@@ -1115,6 +1124,7 @@ public class CollapsingToolbarLayout extends FrameLayout {
         private static final float DEFAULT_PARALLAX_MULTIPLIER = 0.5f;
 
         /** @hide */
+        @RestrictTo(GROUP_ID)
         @IntDef({
                 COLLAPSE_MODE_OFF,
                 COLLAPSE_MODE_PIN,
@@ -1241,6 +1251,9 @@ public class CollapsingToolbarLayout extends FrameLayout {
     }
 
     private class OffsetUpdateListener implements AppBarLayout.OnOffsetChangedListener {
+        OffsetUpdateListener() {
+        }
+
         @Override
         public void onOffsetChanged(AppBarLayout layout, int verticalOffset) {
             mCurrentOffset = verticalOffset;

@@ -19,6 +19,8 @@ package android.support.v7.preference;
 import android.content.res.TypedArray;
 import android.graphics.drawable.Drawable;
 import android.os.Handler;
+import android.support.annotation.RestrictTo;
+import android.support.v4.view.ViewCompat;
 import android.support.v7.widget.RecyclerView;
 import android.text.TextUtils;
 import android.view.LayoutInflater;
@@ -28,12 +30,15 @@ import android.view.ViewGroup;
 import java.util.ArrayList;
 import java.util.List;
 
+import static android.support.annotation.RestrictTo.Scope.GROUP_ID;
+
 /**
  * An adapter that connects a RecyclerView to the {@link Preference} objects contained in the
  * associated {@link PreferenceGroup}.
  *
  * @hide
  */
+@RestrictTo(GROUP_ID)
 public class PreferenceGroupAdapter extends RecyclerView.Adapter<PreferenceViewHolder>
         implements Preference.OnPreferenceChangeInternalListener,
         PreferenceGroup.PreferencePositionCallback {
@@ -295,7 +300,7 @@ public class PreferenceGroupAdapter extends RecyclerView.Adapter<PreferenceViewH
 
         final View view = inflater.inflate(pl.resId, parent, false);
         if (view.getBackground() == null) {
-            view.setBackgroundDrawable(background);
+            ViewCompat.setBackground(view, background);
         }
 
         final ViewGroup widgetFrame = (ViewGroup) view.findViewById(android.R.id.widget_frame);

@@ -21,6 +21,7 @@ import android.animation.TimeInterpolator;
 import android.content.Context;
 import android.content.res.TypedArray;
 import android.graphics.Rect;
+import android.support.annotation.RestrictTo;
 import android.support.v17.leanback.R;
 import android.transition.Fade;
 import android.transition.Transition;
@@ -32,10 +33,13 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.animation.DecelerateInterpolator;
 
+import static android.support.annotation.RestrictTo.Scope.GROUP_ID;
+
 /**
  * Execute horizontal slide of 1/4 width and fade (to workaround bug 23718734)
  * @hide
  */
+@RestrictTo(GROUP_ID)
 public class FadeAndShortSlide extends Visibility {
 
     private static final TimeInterpolator sDecelerate = new DecelerateInterpolator();
@@ -48,6 +52,9 @@ public class FadeAndShortSlide extends Visibility {
     private float mDistance = -1;
 
     private static abstract class CalculateSlide {
+
+        CalculateSlide() {
+        }
 
         /** Returns the translation X value for view when it goes out of the scene */
         float getGoneX(FadeAndShortSlide t, ViewGroup sceneRoot, View view, int[] position) {

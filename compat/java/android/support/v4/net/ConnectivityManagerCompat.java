@@ -21,6 +21,7 @@ import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.Build;
 import android.support.annotation.IntDef;
+import android.support.annotation.RestrictTo;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -32,6 +33,7 @@ import static android.net.ConnectivityManager.TYPE_MOBILE_MMS;
 import static android.net.ConnectivityManager.TYPE_MOBILE_SUPL;
 import static android.net.ConnectivityManager.TYPE_WIFI;
 import static android.net.ConnectivityManager.TYPE_WIMAX;
+import static android.support.annotation.RestrictTo.Scope.GROUP_ID;
 
 /**
  * Helper for accessing features in {@link ConnectivityManager} introduced after
@@ -47,6 +49,7 @@ public final class ConnectivityManagerCompat {
     }
 
     /** @hide */
+    @RestrictTo(GROUP_ID)
     @Retention(RetentionPolicy.SOURCE)
     @IntDef(flag = false, value = {
             RESTRICT_BACKGROUND_STATUS_DISABLED,
@@ -153,9 +156,15 @@ public final class ConnectivityManagerCompat {
     /**
      * Returns if the currently active data network is metered. A network is
      * classified as metered when the user is sensitive to heavy data usage on
-     * that connection. You should check this before doing large data transfers,
-     * and warn the user or delay the operation until another network is
-     * available.
+     * that connection due to monetary costs, data limitations or
+     * battery/performance issues. You should check this before doing large
+     * data transfers, and warn the user or delay the operation until another
+     * network is available.
+     * <p>This method requires the caller to hold the permission
+     * {@link android.Manifest.permission#ACCESS_NETWORK_STATE}.
+     *
+     * @return {@code true} if large transfers should be avoided, otherwise
+     *        {@code false}.
      */
     public static boolean isActiveNetworkMetered(ConnectivityManager cm) {
         return IMPL.isActiveNetworkMetered(cm);

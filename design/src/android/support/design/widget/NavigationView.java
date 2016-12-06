@@ -27,6 +27,7 @@ import android.support.annotation.IdRes;
 import android.support.annotation.LayoutRes;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.annotation.RestrictTo;
 import android.support.annotation.StyleRes;
 import android.support.design.R;
 import android.support.design.internal.NavigationMenu;
@@ -49,6 +50,8 @@ import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
+
+import static android.support.annotation.RestrictTo.Scope.GROUP_ID;
 
 /**
  * Represents a standard navigation menu for application. The menu contents can be populated
@@ -84,7 +87,7 @@ public class NavigationView extends ScrimInsetsFrameLayout {
     private final NavigationMenu mMenu;
     private final NavigationMenuPresenter mPresenter = new NavigationMenuPresenter();
 
-    private OnNavigationItemSelectedListener mListener;
+    OnNavigationItemSelectedListener mListener;
     private int mMaxWidth;
 
     private MenuInflater mMenuInflater;
@@ -110,8 +113,8 @@ public class NavigationView extends ScrimInsetsFrameLayout {
                 R.styleable.NavigationView, defStyleAttr,
                 R.style.Widget_Design_NavigationView);
 
-        //noinspection deprecation
-        setBackgroundDrawable(a.getDrawable(R.styleable.NavigationView_android_background));
+        ViewCompat.setBackground(
+                this, a.getDrawable(R.styleable.NavigationView_android_background));
         if (a.hasValue(R.styleable.NavigationView_elevation)) {
             ViewCompat.setElevation(this, a.getDimensionPixelSize(
                     R.styleable.NavigationView_elevation, 0));
@@ -229,6 +232,7 @@ public class NavigationView extends ScrimInsetsFrameLayout {
     /**
      * @hide
      */
+    @RestrictTo(GROUP_ID)
     @Override
     protected void onInsetsChanged(WindowInsetsCompat insets) {
         mPresenter.dispatchApplyWindowInsets(insets);

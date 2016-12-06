@@ -18,11 +18,13 @@ package com.example.android.support.design.widget;
 
 import android.content.res.ColorStateList;
 import android.os.Bundle;
+import android.support.annotation.NonNull;
 import android.support.design.widget.BottomNavigationView;
 import android.support.v7.app.AppCompatActivity;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
+import android.widget.TextView;
 
 import com.example.android.support.design.R;
 
@@ -50,8 +52,17 @@ public class BottomNavigationViewUsage extends AppCompatActivity {
         buttonAdd.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                MenuItem item = bottom.getMenu().add("Bananas");
-                item.setIcon(android.R.drawable.ic_lock_power_off);
+                if (bottom.getMenu().size() < 5) {
+                    MenuItem item = bottom.getMenu().add("Bananas");
+                    item.setIcon(android.R.drawable.ic_lock_power_off);
+                }
+            }
+        });
+        Button buttonRemove = (Button) findViewById(R.id.button_remove);
+        buttonRemove.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                bottom.getMenu().removeItem(0);
             }
         });
         Button buttonTint = (Button) findViewById(R.id.button_tint);
@@ -65,5 +76,26 @@ public class BottomNavigationViewUsage extends AppCompatActivity {
                 }
             }
         });
+        final TextView selectedItem = (TextView) findViewById(R.id.selected_item);
+        bottom.setOnNavigationItemSelectedListener(
+                new BottomNavigationView.OnNavigationItemSelectedListener() {
+                    @Override
+                    public boolean onNavigationItemSelected(@NonNull MenuItem item) {
+                        switch (item.getItemId()) {
+                            case R.id.action_search:
+                                selectedItem.setText("Entering searching mode");
+                                break;
+                            case R.id.action_settings:
+                                selectedItem.setText("Entering settings!?!");
+                                break;
+                            case R.id.action_music:
+                                selectedItem.setText("Play some music");
+                                break;
+                            default:
+                                selectedItem.setText("Selected " + item.getTitle());
+                        }
+                        return true;
+                    }
+                });
     }
 }

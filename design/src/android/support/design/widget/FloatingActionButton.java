@@ -30,6 +30,7 @@ import android.support.annotation.DrawableRes;
 import android.support.annotation.IntDef;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.annotation.RestrictTo;
 import android.support.annotation.VisibleForTesting;
 import android.support.design.R;
 import android.support.design.widget.FloatingActionButtonImpl.InternalVisibilityChangedListener;
@@ -41,11 +42,14 @@ import android.util.Log;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.ImageView;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.util.List;
+
+import static android.support.annotation.RestrictTo.Scope.GROUP_ID;
 
 /**
  * Floating action buttons are used for a special type of promoted action. They are distinguished
@@ -119,6 +123,7 @@ public class FloatingActionButton extends VisibilityAwareImageButton {
     private static final int AUTO_MINI_LARGEST_SCREEN_WIDTH = 470;
 
     /** @hide */
+    @RestrictTo(GROUP_ID)
     @Retention(RetentionPolicy.SOURCE)
     @IntDef({SIZE_MINI, SIZE_NORMAL, SIZE_AUTO})
     public @interface Size {}
@@ -129,11 +134,11 @@ public class FloatingActionButton extends VisibilityAwareImageButton {
     private int mBorderWidth;
     private int mRippleColor;
     private int mSize;
-    private int mImagePadding;
+    int mImagePadding;
     private int mMaxImageSize;
 
-    private boolean mCompatPadding;
-    private final Rect mShadowPadding = new Rect();
+    boolean mCompatPadding;
+    final Rect mShadowPadding = new Rect();
     private final Rect mTouchArea = new Rect();
 
     private AppCompatImageHelper mImageHelper;
@@ -320,7 +325,7 @@ public class FloatingActionButton extends VisibilityAwareImageButton {
         show(listener, true);
     }
 
-    private void show(OnVisibilityChangedListener listener, boolean fromUser) {
+    void show(OnVisibilityChangedListener listener, boolean fromUser) {
         getImpl().show(wrapOnVisibilityChangedListener(listener), fromUser);
     }
 
@@ -342,7 +347,7 @@ public class FloatingActionButton extends VisibilityAwareImageButton {
         hide(listener, true);
     }
 
-    private void hide(@Nullable OnVisibilityChangedListener listener, boolean fromUser) {
+    void hide(@Nullable OnVisibilityChangedListener listener, boolean fromUser) {
         getImpl().hide(wrapOnVisibilityChangedListener(listener), fromUser);
     }
 
@@ -425,7 +430,7 @@ public class FloatingActionButton extends VisibilityAwareImageButton {
         };
     }
 
-    private int getSizeDimension() {
+    int getSizeDimension() {
         return getSizeDimension(mSize);
     }
 
@@ -604,10 +609,13 @@ public class FloatingActionButton extends VisibilityAwareImageButton {
             return false;
         }
 
-        private static boolean isBottomSheet(View view) {
-            CoordinatorLayout.LayoutParams lp =
-                    (CoordinatorLayout.LayoutParams) view.getLayoutParams();
-            return lp != null && lp.getBehavior() instanceof BottomSheetBehavior;
+        private static boolean isBottomSheet(@NonNull View view) {
+            final ViewGroup.LayoutParams lp = view.getLayoutParams();
+            if (lp instanceof CoordinatorLayout.LayoutParams) {
+                return ((CoordinatorLayout.LayoutParams) lp)
+                        .getBehavior() instanceof BottomSheetBehavior;
+            }
+            return false;
         }
 
         @VisibleForTesting
@@ -798,6 +806,9 @@ public class FloatingActionButton extends VisibilityAwareImageButton {
     }
 
     private class ShadowDelegateImpl implements ShadowViewDelegate {
+        ShadowDelegateImpl() {
+        }
+
         @Override
         public float getRadius() {
             return getSizeDimension() / 2f;

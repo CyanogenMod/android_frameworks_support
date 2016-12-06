@@ -24,9 +24,6 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.support.v17.leanback.test.R;
 
-/**
- * @hide from javadoc
- */
 public class BrowseSupportFragmentTestActivity extends FragmentActivity {
 
     public static final String EXTRA_ADD_TO_BACKSTACK = "addToBackStack";
@@ -34,6 +31,7 @@ public class BrowseSupportFragmentTestActivity extends FragmentActivity {
     public static final String EXTRA_REPEAT_PER_ROW = "repeatPerRow";
     public static final String EXTRA_LOAD_DATA_DELAY = "loadDataDelay";
     public static final String EXTRA_TEST_ENTRANCE_TRANSITION = "testEntranceTransition";
+    public final static String EXTRA_SET_ADAPTER_AFTER_DATA_LOAD = "set_adapter_after_data_load";
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -49,6 +47,9 @@ public class BrowseSupportFragmentTestActivity extends FragmentActivity {
         BrowseTestSupportFragment.TEST_ENTRANCE_TRANSITION = intent.getBooleanExtra(
                 EXTRA_TEST_ENTRANCE_TRANSITION,
                 BrowseTestSupportFragment.DEFAULT_TEST_ENTRANCE_TRANSITION);
+        BrowseTestSupportFragment.SET_ADAPTER_AFTER_DATA_LOAD = intent.getBooleanExtra(
+                EXTRA_SET_ADAPTER_AFTER_DATA_LOAD,
+                BrowseTestSupportFragment.DEFAULT_SET_ADAPTER_AFTER_DATA_LOAD);
         setContentView(R.layout.browse);
         FragmentTransaction ft = getSupportFragmentManager().beginTransaction();
         ft.replace(R.id.main_frame, new BrowseTestSupportFragment());

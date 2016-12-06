@@ -24,6 +24,7 @@ import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.res.TypedArray;
 import android.content.res.XmlResourceParser;
+import android.support.annotation.RestrictTo;
 import android.support.v4.internal.view.SupportMenu;
 import android.support.v4.view.ActionProvider;
 import android.support.v4.view.MenuItemCompat;
@@ -44,6 +45,8 @@ import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 
+import static android.support.annotation.RestrictTo.Scope.GROUP_ID;
+
 /**
  * This class is used to instantiate menu XML files into Menu objects.
  * <p>
@@ -55,8 +58,9 @@ import java.lang.reflect.Method;
  *
  * @hide
  */
+@RestrictTo(GROUP_ID)
 public class SupportMenuInflater extends MenuInflater {
-    private static final String LOG_TAG = "SupportMenuInflater";
+    static final String LOG_TAG = "SupportMenuInflater";
 
     /** Menu tag name in XML. */
     private static final String XML_MENU = "menu";
@@ -67,18 +71,18 @@ public class SupportMenuInflater extends MenuInflater {
     /** Item tag name in XML. */
     private static final String XML_ITEM = "item";
 
-    private static final int NO_ID = 0;
+    static final int NO_ID = 0;
 
-    private static final Class<?>[] ACTION_VIEW_CONSTRUCTOR_SIGNATURE = new Class[] {Context.class};
+    static final Class<?>[] ACTION_VIEW_CONSTRUCTOR_SIGNATURE = new Class[] {Context.class};
 
-    private static final Class<?>[] ACTION_PROVIDER_CONSTRUCTOR_SIGNATURE =
+    static final Class<?>[] ACTION_PROVIDER_CONSTRUCTOR_SIGNATURE =
             ACTION_VIEW_CONSTRUCTOR_SIGNATURE;
 
-    private final Object[] mActionViewConstructorArguments;
+    final Object[] mActionViewConstructorArguments;
 
-    private final Object[] mActionProviderConstructorArguments;
+    final Object[] mActionProviderConstructorArguments;
 
-    private Context mContext;
+    Context mContext;
     private Object mRealOwner;
 
     /**
@@ -209,7 +213,7 @@ public class SupportMenuInflater extends MenuInflater {
         }
     }
 
-    private Object getRealOwner() {
+    Object getRealOwner() {
         if (mRealOwner == null) {
             mRealOwner = findRealOwner(mContext);
         }
@@ -315,7 +319,7 @@ public class SupportMenuInflater extends MenuInflater {
 
         private String itemListenerMethodName;
 
-        private ActionProvider itemActionProvider;
+        ActionProvider itemActionProvider;
 
         private static final int defaultGroupId = NO_ID;
         private static final int defaultItemId = NO_ID;

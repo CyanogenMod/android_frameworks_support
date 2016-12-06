@@ -37,6 +37,7 @@ import android.support.annotation.IdRes;
 import android.support.annotation.IntDef;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.annotation.RestrictTo;
 import android.support.annotation.VisibleForTesting;
 import android.support.design.R;
 import android.support.v4.content.ContextCompat;
@@ -71,6 +72,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static android.support.annotation.RestrictTo.Scope.GROUP_ID;
 import static android.support.design.widget.ViewUtils.objectEquals;
 
 /**
@@ -132,11 +134,12 @@ public class CoordinatorLayout extends ViewGroup implements NestedScrollingParen
             new ThreadLocal<>();
 
 
-    private static final int EVENT_PRE_DRAW = 0;
-    private static final int EVENT_NESTED_SCROLL = 1;
-    private static final int EVENT_VIEW_REMOVED = 2;
+    static final int EVENT_PRE_DRAW = 0;
+    static final int EVENT_NESTED_SCROLL = 1;
+    static final int EVENT_VIEW_REMOVED = 2;
 
     /** @hide */
+    @RestrictTo(GROUP_ID)
     @Retention(RetentionPolicy.SOURCE)
     @IntDef({EVENT_PRE_DRAW, EVENT_NESTED_SCROLL, EVENT_VIEW_REMOVED})
     public @interface DispatchChangeEvent {}
@@ -172,7 +175,7 @@ public class CoordinatorLayout extends ViewGroup implements NestedScrollingParen
     private boolean mDrawStatusBarBackground;
     private Drawable mStatusBarBackground;
 
-    private OnHierarchyChangeListener mOnHierarchyChangeListener;
+    OnHierarchyChangeListener mOnHierarchyChangeListener;
     private android.support.v4.view.OnApplyWindowInsetsListener mApplyWindowInsetsListener;
 
     private final NestedScrollingParentHelper mNestedScrollingParentHelper =
@@ -1137,8 +1140,6 @@ public class CoordinatorLayout extends ViewGroup implements NestedScrollingParen
         GravityCompat.apply(resolveGravity(lp.gravity), child.getMeasuredWidth(),
                 child.getMeasuredHeight(), parent, out, layoutDirection);
         child.layout(out.left, out.top, out.right, out.bottom);
-        ViewCompat.offsetLeftAndRight(child, lp.mInsetOffsetX);
-        ViewCompat.offsetTopAndBottom(child, lp.mInsetOffsetY);
     }
 
     /**
@@ -1255,7 +1256,7 @@ public class CoordinatorLayout extends ViewGroup implements NestedScrollingParen
             }
 
             // Dodge inset edges if necessary
-            if (lp.dodgeInsetEdges != Gravity.NO_GRAVITY) {
+            if (lp.dodgeInsetEdges != Gravity.NO_GRAVITY && child.getVisibility() == View.VISIBLE) {
                 offsetChildByInset(child, inset, layoutDirection);
             }
 
@@ -1307,7 +1308,13 @@ public class CoordinatorLayout extends ViewGroup implements NestedScrollingParen
         }
     }
 
-    private void offsetChildByInset(View child, Rect inset, int layoutDirection) {
+    private void offsetChildByInset(final View child, final Rect inset, final int layoutDirection) {
+        if (!ViewCompat.isLaidOut(child)) {
+            // The view has not been laid out yet,
+            // so we can't obtain its bounds.
+            return;
+        }
+
         final LayoutParams lp = (LayoutParams) child.getLayoutParams();
         final int absDodgeInsetEdges = GravityCompat.getAbsoluteGravity(lp.dodgeInsetEdges,
                 layoutDirection);
@@ -1316,9 +1323,17 @@ public class CoordinatorLayout extends ViewGroup implements NestedScrollingParen
         final Rect rect = mTempRect3;
         if (behavior != null && behavior.getInsetDodgeRect(this, child, rect)) {
             // Make sure that it intersects the views bounds
-            rect.intersect(child.getLeft(), child.getTop(), child.getRight(), child.getBottom());
+            if (!rect.intersect(child.getLeft(), child.getTop(),
+                    child.getRight(), child.getBottom())) {
+                throw new IllegalArgumentException("Rect should intersect with child's bounds.");
+            }
         } else {
             rect.set(child.getLeft(), child.getTop(), child.getRight(), child.getBottom());
+        }
+
+        if (rect.isEmpty()) {
+            // Rect is empty so there is nothing to dodge against, skip...
+            return;
         }
 
         boolean offsetY = false;
@@ -2423,8 +2438,8 @@ public class CoordinatorLayout extends ViewGroup implements NestedScrollingParen
          * Called when a view is set to dodge view insets.
          *
          * <p>This method allows a behavior to update the rectangle that should be dodged.
-         * The rectangle should be in the parents coordinate system, and within the child's
-         * bounds.</p>
+         * The rectangle should be in the parent's coordinate system and within the child's
+         * bounds. If not, a {@link IllegalArgumentException} is thrown.</p>
          *
          * @param parent the CoordinatorLayout parent of the view this Behavior is
          *               associated with
@@ -2489,8 +2504,8 @@ public class CoordinatorLayout extends ViewGroup implements NestedScrollingParen
          */
         public int dodgeInsetEdges = Gravity.NO_GRAVITY;
 
-        private int mInsetOffsetX;
-        private int mInsetOffsetY;
+        int mInsetOffsetX;
+        int mInsetOffsetY;
 
         View mAnchorView;
         View mAnchorDirectChild;
@@ -2838,6 +2853,9 @@ public class CoordinatorLayout extends ViewGroup implements NestedScrollingParen
     }
 
     private class HierarchyChangeListener implements OnHierarchyChangeListener {
+        HierarchyChangeListener() {
+        }
+
         @Override
         public void onChildViewAdded(View parent, View child) {
             if (mOnHierarchyChangeListener != null) {

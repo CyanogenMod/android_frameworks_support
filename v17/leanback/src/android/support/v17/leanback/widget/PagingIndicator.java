@@ -31,6 +31,7 @@ import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.support.annotation.ColorInt;
+import android.support.annotation.RestrictTo;
 import android.support.annotation.VisibleForTesting;
 import android.support.v17.leanback.R;
 import android.util.AttributeSet;
@@ -38,10 +39,13 @@ import android.util.Property;
 import android.view.View;
 import android.view.animation.DecelerateInterpolator;
 
+import static android.support.annotation.RestrictTo.Scope.GROUP_ID;
+
 /**
  * A page indicator with dots.
  * @hide
  */
+@RestrictTo(GROUP_ID)
 public class PagingIndicator extends View {
     private static final long DURATION_ALPHA = 167;
     private static final long DURATION_DIAMETER = 417;
@@ -88,12 +92,12 @@ public class PagingIndicator extends View {
     };
 
     // attribute
-    private boolean mIsLtr;
-    private final int mDotDiameter;
-    private final int mDotRadius;
+    boolean mIsLtr;
+    final int mDotDiameter;
+    final int mDotRadius;
     private final int mDotGap;
-    private final int mArrowDiameter;
-    private final int mArrowRadius;
+    final int mArrowDiameter;
+    final int mArrowRadius;
     private final int mArrowGap;
     private final int mShadowRadius;
     private Dot[] mDots;
@@ -103,7 +107,7 @@ public class PagingIndicator extends View {
     private int[] mDotSelectedPrevX;
     // X position when the dot is located to the right of the selected dot.
     private int[] mDotSelectedNextX;
-    private int mDotCenterY;
+    int mDotCenterY;
 
     // state
     private int mPageCount;
@@ -112,15 +116,15 @@ public class PagingIndicator extends View {
 
     // drawing
     @ColorInt
-    private final int mDotFgSelectColor;
-    private final Paint mBgPaint;
-    private final Paint mFgPaint;
+    final int mDotFgSelectColor;
+    final Paint mBgPaint;
+    final Paint mFgPaint;
     private final AnimatorSet mShowAnimator;
     private final AnimatorSet mHideAnimator;
     private final AnimatorSet mAnimator = new AnimatorSet();
-    private Bitmap mArrow;
-    private final Rect mArrowRect;
-    private final float mArrowToBgRatio;
+    Bitmap mArrow;
+    final Rect mArrowRect;
+    final float mArrowToBgRatio;
 
     public PagingIndicator(Context context) {
         this(context, null, 0);
@@ -135,7 +139,7 @@ public class PagingIndicator extends View {
         Resources res = getResources();
         TypedArray typedArray = context.obtainStyledAttributes(attrs, R.styleable.PagingIndicator,
                 defStyle, 0);
-        mDotRadius = getDimensionFromTypedArray(typedArray, R.styleable.PagingIndicator_dotRadius,
+        mDotRadius = getDimensionFromTypedArray(typedArray, R.styleable.PagingIndicator_lbDotRadius,
                 R.dimen.lb_page_indicator_dot_radius);
         mDotDiameter = mDotRadius * 2;
         mArrowRadius = getDimensionFromTypedArray(typedArray,

@@ -20,6 +20,8 @@ import android.content.Context;
 import android.content.res.TypedArray;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
+import android.support.annotation.RestrictTo;
+import android.support.v4.view.ViewCompat;
 import android.support.v7.appcompat.R;
 import android.support.v7.view.ActionMode;
 import android.util.AttributeSet;
@@ -28,11 +30,14 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
 
+import static android.support.annotation.RestrictTo.Scope.GROUP_ID;
+
 /**
  * This class acts as a container for the action bar view and action mode context views.
  * It applies special styles as needed to help handle animated transitions between them.
  * @hide
  */
+@RestrictTo(GROUP_ID)
 public class ActionBarContainer extends FrameLayout {
     private boolean mIsTransitioning;
     private View mTabContainer;
@@ -57,7 +62,7 @@ public class ActionBarContainer extends FrameLayout {
         final Drawable bg = Build.VERSION.SDK_INT >= 21
                 ? new ActionBarBackgroundDrawableV21(this)
                 : new ActionBarBackgroundDrawable(this);
-        setBackgroundDrawable(bg);
+        ViewCompat.setBackground(this, bg);
 
         TypedArray a = context.obtainStyledAttributes(attrs,
                 R.styleable.ActionBar);

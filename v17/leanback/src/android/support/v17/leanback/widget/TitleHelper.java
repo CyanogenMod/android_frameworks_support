@@ -29,8 +29,8 @@ import android.view.ViewGroup;
  */
 public class TitleHelper {
 
-    private ViewGroup mSceneRoot;
-    private View mTitleView;
+    ViewGroup mSceneRoot;
+    View mTitleView;
     private Object mTitleUpTransition;
     private Object mTitleDownTransition;
     private Object mSceneWithTitle;
@@ -48,7 +48,7 @@ public class TitleHelper {
             final boolean isRtl = ViewCompat.getLayoutDirection(focused) ==
                     View.LAYOUT_DIRECTION_RTL;
             final int forward = isRtl ? View.FOCUS_LEFT : View.FOCUS_RIGHT;
-            if (mTitleView.hasFocus() && direction == View.FOCUS_DOWN || direction == forward) {
+            if (mTitleView.hasFocus() && (direction == View.FOCUS_DOWN || direction == forward)) {
                 return mSceneRoot;
             }
             return null;

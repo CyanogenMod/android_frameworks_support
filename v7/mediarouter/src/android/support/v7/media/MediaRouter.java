@@ -33,6 +33,7 @@ import android.os.Message;
 import android.support.annotation.IntDef;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.annotation.RestrictTo;
 import android.support.v4.app.ActivityManagerCompat;
 import android.support.v4.hardware.display.DisplayManagerCompat;
 import android.support.v4.media.VolumeProviderCompat;
@@ -57,6 +58,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static android.support.annotation.RestrictTo.Scope.GROUP_ID;
+
 /**
  * MediaRouter allows applications to control the routing of media channels
  * and streams from the current device to external speakers and destination devices.
@@ -76,8 +79,8 @@ import java.util.Set;
  * </p>
  */
 public final class MediaRouter {
-    private static final String TAG = "MediaRouter";
-    private static final boolean DEBUG = Log.isLoggable(TAG, Log.DEBUG);
+    static final String TAG = "MediaRouter";
+    static final boolean DEBUG = Log.isLoggable(TAG, Log.DEBUG);
 
     /**
      * Passed to {@link android.support.v7.media.MediaRouteProvider.RouteController#onUnselect(int)}
@@ -117,7 +120,6 @@ public final class MediaRouter {
     final Context mContext;
     final ArrayList<CallbackRecord> mCallbackRecords = new ArrayList<CallbackRecord>();
 
-    /** @hide */
     @IntDef(flag = true,
             value = {
                     CALLBACK_FLAG_PERFORM_ACTIVE_SCAN,
@@ -805,7 +807,6 @@ public final class MediaRouter {
         private IntentSender mSettingsIntent;
         MediaRouteDescriptor mDescriptor;
 
-        /** @hide */
         @IntDef({CONNECTION_STATE_DISCONNECTED, CONNECTION_STATE_CONNECTING,
                 CONNECTION_STATE_CONNECTED})
         @Retention(RetentionPolicy.SOURCE)
@@ -833,7 +834,6 @@ public final class MediaRouter {
          */
         public static final int CONNECTION_STATE_CONNECTED = 2;
 
-        /** @hide */
         @IntDef({PLAYBACK_TYPE_LOCAL,PLAYBACK_TYPE_REMOTE})
         @Retention(RetentionPolicy.SOURCE)
         private @interface PlaybackType {}
@@ -855,7 +855,6 @@ public final class MediaRouter {
          */
         public static final int PLAYBACK_TYPE_REMOTE = 1;
 
-        /** @hide */
         @IntDef({DEVICE_TYPE_UNKNOWN, DEVICE_TYPE_TV, DEVICE_TYPE_SPEAKER, DEVICE_TYPE_BLUETOOTH})
         @Retention(RetentionPolicy.SOURCE)
         private @interface DeviceType {}
@@ -866,6 +865,7 @@ public final class MediaRouter {
          * @see #getDeviceType
          * @hide
          */
+        @RestrictTo(GROUP_ID)
         public static final int DEVICE_TYPE_UNKNOWN = 0;
 
         /**
@@ -891,9 +891,9 @@ public final class MediaRouter {
          * @see #getDeviceType
          * @hide
          */
+        @RestrictTo(GROUP_ID)
         public static final int DEVICE_TYPE_BLUETOOTH = 3;
 
-        /** @hide */
         @IntDef({PLAYBACK_VOLUME_FIXED,PLAYBACK_VOLUME_VARIABLE})
         @Retention(RetentionPolicy.SOURCE)
         private @interface PlaybackVolume {}
@@ -921,6 +921,7 @@ public final class MediaRouter {
          * with the route.
          * @hide
          */
+        @RestrictTo(GROUP_ID)
         public static final int PRESENTATION_DISPLAY_ID_NONE = -1;
 
         static final int CHANGE_GENERAL = 1 << 0;
@@ -1247,6 +1248,7 @@ public final class MediaRouter {
         /**
          * @hide
          */
+        @RestrictTo(GROUP_ID)
         public boolean isDefaultOrBluetooth() {
             if (isDefault() || mDeviceType == DEVICE_TYPE_BLUETOOTH) {
                 return true;
@@ -1377,6 +1379,7 @@ public final class MediaRouter {
          * Gets the route's presentation display id, or -1 if none.
          * @hide
          */
+        @RestrictTo(GROUP_ID)
         public int getPresentationDisplayId() {
             return mPresentationDisplayId;
         }
@@ -1521,6 +1524,7 @@ public final class MediaRouter {
         }
 
         /** @hide */
+        @RestrictTo(GROUP_ID)
         public MediaRouteProvider getProviderInstance() {
             return mProvider.getProviderInstance();
         }
@@ -1530,6 +1534,7 @@ public final class MediaRouter {
      * Information about a route that consists of multiple other routes in a group.
      * @hide
      */
+    @RestrictTo(GROUP_ID)
     public static class RouteGroup extends RouteInfo {
         private List<RouteInfo> mRoutes = new ArrayList<>();
 
@@ -1882,31 +1887,31 @@ public final class MediaRouter {
     private static final class GlobalMediaRouter
             implements SystemMediaRouteProvider.SyncCallback,
             RegisteredMediaRouteProviderWatcher.Callback {
-        private final Context mApplicationContext;
-        private final ArrayList<WeakReference<MediaRouter>> mRouters = new ArrayList<>();
+        final Context mApplicationContext;
+        final ArrayList<WeakReference<MediaRouter>> mRouters = new ArrayList<>();
         private final ArrayList<RouteInfo> mRoutes = new ArrayList<>();
         private final Map<Pair<String, String>, String> mUniqueIdMap = new HashMap<>();
         private final ArrayList<ProviderInfo> mProviders = new ArrayList<>();
         private final ArrayList<RemoteControlClientRecord> mRemoteControlClients =
                 new ArrayList<>();
-        private final RemoteControlClientCompat.PlaybackInfo mPlaybackInfo =
+        final RemoteControlClientCompat.PlaybackInfo mPlaybackInfo =
                 new RemoteControlClientCompat.PlaybackInfo();
         private final ProviderCallback mProviderCallback = new ProviderCallback();
-        private final CallbackHandler mCallbackHandler = new CallbackHandler();
+        final CallbackHandler mCallbackHandler = new CallbackHandler();
         private final DisplayManagerCompat mDisplayManager;
-        private final SystemMediaRouteProvider mSystemProvider;
+        final SystemMediaRouteProvider mSystemProvider;
         private final boolean mLowRam;
 
         private RegisteredMediaRouteProviderWatcher mRegisteredProviderWatcher;
         private RouteInfo mDefaultRoute;
-        private RouteInfo mSelectedRoute;
+        RouteInfo mSelectedRoute;
         private RouteController mSelectedRouteController;
         // A map from route descriptor ID to RouteController for the member routes in the currently
         // selected route group.
         private final Map<String, RouteController> mRouteControllerMap = new HashMap<>();
         private MediaRouteDiscoveryRequest mDiscoveryRequest;
         private MediaSessionRecord mMediaSession;
-        private MediaSessionCompat mRccMediaSession;
+        MediaSessionCompat mRccMediaSession;
         private MediaSessionCompat mCompatSession;
         private MediaSessionCompat.OnActiveChangeListener mSessionActiveListener =
                 new MediaSessionCompat.OnActiveChangeListener() {
@@ -2195,7 +2200,7 @@ public final class MediaRouter {
             }
         }
 
-        private void updateProviderDescriptor(MediaRouteProvider providerInstance,
+        void updateProviderDescriptor(MediaRouteProvider providerInstance,
                 MediaRouteProviderDescriptor descriptor) {
             int index = findProviderInfo(providerInstance);
             if (index >= 0) {
@@ -2669,6 +2674,9 @@ public final class MediaRouter {
         }
 
         private final class ProviderCallback extends MediaRouteProvider.Callback {
+            ProviderCallback() {
+            }
+
             @Override
             public void onDescriptorChanged(MediaRouteProvider provider,
                     MediaRouteProviderDescriptor descriptor) {
@@ -2794,6 +2802,9 @@ public final class MediaRouter {
             public static final int MSG_PROVIDER_REMOVED = MSG_TYPE_PROVIDER | 2;
             public static final int MSG_PROVIDER_CHANGED = MSG_TYPE_PROVIDER | 3;
 
+            CallbackHandler() {
+            }
+
             public void post(int msg, Object obj) {
                 obtainMessage(msg, obj).sendToTarget();
             }
@@ -2809,6 +2820,11 @@ public final class MediaRouter {
                 final int what = msg.what;
                 final Object obj = msg.obj;
                 final int arg = msg.arg1;
+
+                if (what == MSG_ROUTE_CHANGED
+                        && getSelectedRoute().getId().equals(((RouteInfo) obj).getId())) {
+                    updateSelectedRouteIfNeeded(true);
+                }
 
                 // Synchronize state with the system media router.
                 syncWithSystemProvider(what, obj);

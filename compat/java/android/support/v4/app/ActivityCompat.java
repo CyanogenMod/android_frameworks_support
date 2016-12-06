@@ -29,6 +29,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Parcelable;
+import android.support.annotation.IntRange;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.content.ContextCompat;
@@ -117,31 +118,6 @@ public class ActivityCompat extends ContextCompat {
             return true;
         }
         return false;
-    }
-
-    /**
-     * Start an activity with additional launch information, if able.
-     *
-     * <p>In Android 4.1+ additional options were introduced to allow for more
-     * control on activity launch animations. Applications can use this method
-     * along with {@link ActivityOptionsCompat} to use these animations when
-     * available. When run on versions of the platform where this feature does
-     * not exist the activity will be launched normally.</p>
-     *
-     * @param activity Context to launch activity from.
-     * @param intent The description of the activity to start.
-     * @param options Additional options for how the Activity should be started.
-     *                May be null if there are no options. See
-     *                {@link ActivityOptionsCompat} for how to build the Bundle
-     *                supplied here; there are no supported definitions for
-     *                building it manually.
-     */
-    public static void startActivity(Activity activity, Intent intent, @Nullable Bundle options) {
-        if (Build.VERSION.SDK_INT >= 16) {
-            ActivityCompatJB.startActivity(activity, intent, options);
-        } else {
-            activity.startActivity(intent);
-        }
     }
 
     /**
@@ -355,8 +331,8 @@ public class ActivityCompat extends ContextCompat {
      * to grant and which to reject. Hence, you should be prepared that your activity
      * may be paused and resumed. Further, granting some permissions may require
      * a restart of you application. In such a case, the system will recreate the
-     * activity stack before delivering the result to your onRequestPermissionsResult(
-     * int, String[], int[]).
+     * activity stack before delivering the result to your
+     * {@link OnRequestPermissionsResultCallback#onRequestPermissionsResult(int, String[], int[])}.
      * </p>
      * <p>
      * When checking whether you have a permission you should use {@link
@@ -368,18 +344,30 @@ public class ActivityCompat extends ContextCompat {
      * can be useful if the way your app uses the data guarded by the permissions
      * changes significantly.
      * </p>
+     * <p>
+     * You cannot request a permission if your activity sets {@link
+     * android.R.attr#noHistory noHistory} to <code>true</code> in the manifest
+     * because in this case the activity would not receive result callbacks including
+     * {@link OnRequestPermissionsResultCallback#onRequestPermissionsResult(int, String[], int[])}.
+     * </p>
+     * <p>
+     * The <a href="http://developer.android.com/samples/RuntimePermissions/index.html">
+     * RuntimePermissions</a> sample app demonstrates how to use this method to
+     * request permissions at run time.
+     * </p>
      *
      * @param activity The target activity.
-     * @param permissions The requested permissions.
+     * @param permissions The requested permissions. Must me non-null and not empty.
      * @param requestCode Application specific request code to match with a result
-     *    reported to {@link OnRequestPermissionsResultCallback#onRequestPermissionsResult(
-     *    int, String[], int[])}.
+     *    reported to {@link OnRequestPermissionsResultCallback#onRequestPermissionsResult(int, String[], int[])}.
+     *    Should be >= 0.
      *
+     * @see OnRequestPermissionsResultCallback#onRequestPermissionsResult(int, String[], int[])
      * @see #checkSelfPermission(android.content.Context, String)
      * @see #shouldShowRequestPermissionRationale(android.app.Activity, String)
      */
     public static void requestPermissions(final @NonNull Activity activity,
-            final @NonNull String[] permissions, final int requestCode) {
+            final @NonNull String[] permissions, final @IntRange(from = 0) int requestCode) {
         if (Build.VERSION.SDK_INT >= 23) {
             ActivityCompatApi23.requestPermissions(activity, permissions, requestCode);
         } else if (activity instanceof OnRequestPermissionsResultCallback) {

@@ -18,7 +18,9 @@ package android.support.v7.widget;
 
 import android.os.Build;
 import android.os.SystemClock;
+import android.support.annotation.RestrictTo;
 import android.support.v4.view.MotionEventCompat;
+import android.support.v4.view.ViewCompat;
 import android.support.v7.view.menu.ShowableListMenu;
 import android.view.MotionEvent;
 import android.view.View;
@@ -27,12 +29,15 @@ import android.view.ViewConfiguration;
 import android.view.ViewParent;
 import android.view.ViewTreeObserver.OnGlobalLayoutListener;
 
+import static android.support.annotation.RestrictTo.Scope.GROUP_ID;
+
 
 /**
  * Abstract class that forwards touch events to a {@link ShowableListMenu}.
  *
  * @hide
  */
+@RestrictTo(GROUP_ID)
 public abstract class ForwardingListener implements View.OnTouchListener {
 
     /** Scaled touch slop, used for detecting movement outside bounds. */
@@ -45,7 +50,7 @@ public abstract class ForwardingListener implements View.OnTouchListener {
     private final int mLongPressTimeout;
 
     /** Source view from which events are forwarded. */
-    private final View mSrc;
+    final View mSrc;
 
     /** Runnable used to prevent conflicts with scrolling parents. */
     private Runnable mDisallowIntercept;
@@ -95,12 +100,12 @@ public abstract class ForwardingListener implements View.OnTouchListener {
 
     private void addDetachListenerBase(View src) {
         src.getViewTreeObserver().addOnGlobalLayoutListener(new OnGlobalLayoutListener() {
-            boolean mIsAttached = mSrc.isAttachedToWindow();
+            boolean mIsAttached = ViewCompat.isAttachedToWindow(mSrc);
 
             @Override
             public void onGlobalLayout() {
                 final boolean wasAttached = mIsAttached;
-                mIsAttached = mSrc.isAttachedToWindow();
+                mIsAttached = ViewCompat.isAttachedToWindow(mSrc);
                 if (wasAttached && !mIsAttached) {
                     onDetachedFromWindow();
                 }
@@ -248,7 +253,7 @@ public abstract class ForwardingListener implements View.OnTouchListener {
         }
     }
 
-    private void onLongPress() {
+    void onLongPress() {
         clearCallbacks();
 
         final View src = mSrc;
@@ -339,6 +344,9 @@ public abstract class ForwardingListener implements View.OnTouchListener {
     }
 
     private class DisallowIntercept implements Runnable {
+        DisallowIntercept() {
+        }
+
         @Override
         public void run() {
             final ViewParent parent = mSrc.getParent();
@@ -349,6 +357,9 @@ public abstract class ForwardingListener implements View.OnTouchListener {
     }
 
     private class TriggerLongPress implements Runnable {
+        TriggerLongPress() {
+        }
+
         @Override
         public void run() {
             onLongPress();

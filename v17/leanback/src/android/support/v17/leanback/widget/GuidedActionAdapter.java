@@ -16,6 +16,7 @@ package android.support.v17.leanback.widget;
 import android.content.Context;
 import android.database.DataSetObserver;
 import android.media.AudioManager;
+import android.support.annotation.RestrictTo;
 import android.support.v17.leanback.R;
 import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.RecyclerView.ViewHolder;
@@ -36,6 +37,8 @@ import android.widget.TextView.OnEditorActionListener;
 import java.util.ArrayList;
 import java.util.List;
 
+import static android.support.annotation.RestrictTo.Scope.GROUP_ID;
+
 /**
  * GuidedActionAdapter instantiates views for guided actions, and manages their interactions.
  * Presentation (view creation and state animation) is delegated to a {@link
@@ -43,12 +46,13 @@ import java.util.List;
  * {@link GuidedActionAdapter.ClickListener} and {@link GuidedActionAdapter.FocusListener}.
  * @hide
  */
+@RestrictTo(GROUP_ID)
 public class GuidedActionAdapter extends RecyclerView.Adapter {
-    private static final String TAG = "GuidedActionAdapter";
-    private static final boolean DEBUG = false;
+    static final String TAG = "GuidedActionAdapter";
+    static final boolean DEBUG = false;
 
-    private static final String TAG_EDIT = "EditableAction";
-    private static final boolean DEBUG_EDIT = false;
+    static final String TAG_EDIT = "EditableAction";
+    static final boolean DEBUG_EDIT = false;
 
     /**
      * Object listening for click events within a {@link GuidedActionAdapter}.
@@ -105,7 +109,7 @@ public class GuidedActionAdapter extends RecyclerView.Adapter {
     private final ActionEditListener mActionEditListener;
     private final List<GuidedAction> mActions;
     private ClickListener mClickListener;
-    private final GuidedActionsStylist mStylist;
+    final GuidedActionsStylist mStylist;
     private final View.OnClickListener mOnClickListener = new View.OnClickListener() {
         @Override
         public void onClick(View v) {
@@ -215,6 +219,7 @@ public class GuidedActionAdapter extends RecyclerView.Adapter {
      * Used for serialization only.
      * @hide
      */
+    @RestrictTo(GROUP_ID)
     public List<GuidedAction> getActions() {
         return new ArrayList<GuidedAction>(mActions);
     }
@@ -227,7 +232,7 @@ public class GuidedActionAdapter extends RecyclerView.Adapter {
         return mStylist.getItemViewType(mActions.get(position));
     }
 
-    private RecyclerView getRecyclerView() {
+    RecyclerView getRecyclerView() {
         return mIsSubAdapter ? mStylist.getSubActionsGridView() : mStylist.getActionsGridView();
     }
 
@@ -390,6 +395,9 @@ public class GuidedActionAdapter extends RecyclerView.Adapter {
 
         private boolean mKeyPressed = false;
 
+        ActionOnKeyListener() {
+        }
+
         /**
          * Now only handles KEYCODE_ENTER and KEYCODE_NUMPAD_ENTER key event.
          */
@@ -453,6 +461,9 @@ public class GuidedActionAdapter extends RecyclerView.Adapter {
 
     private class ActionEditListener implements OnEditorActionListener,
             ImeKeyMonitor.ImeKeyListener {
+
+        ActionEditListener() {
+        }
 
         @Override
         public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {

@@ -16,18 +16,22 @@
 
 package android.support.v7.widget;
 
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNotSame;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
 
-import android.app.Instrumentation;
 import android.content.Context;
+import android.os.Build;
 import android.os.Parcel;
 import android.os.Parcelable;
 import android.os.SystemClock;
 import android.support.test.InstrumentationRegistry;
+import android.support.test.filters.SdkSuppress;
 import android.support.test.runner.AndroidJUnit4;
-import android.test.AndroidTestCase;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.util.AttributeSet;
 import android.util.SparseArray;
@@ -36,10 +40,13 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import static org.junit.Assert.*;
 
 @SmallTest
 @RunWith(AndroidJUnit4.class)
@@ -309,7 +316,6 @@ public class RecyclerViewBasicTest {
         layout();
     }
 
-
     @Test
     public void dontSaveChildrenState() throws InterruptedException {
         MockLayoutManager mlm = new MockLayoutManager() {
@@ -341,6 +347,21 @@ public class RecyclerViewBasicTest {
         mRecyclerView.saveHierarchyState(container);
         assertEquals("children's save state method should not be called", 0,
                 loggingView.getOnSavedInstanceCnt());
+    }
+
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.LOLLIPOP)
+    @Test
+    public void prefetchChangesCacheSize() {
+        MockLayoutManager mlm = new MockLayoutManager() {
+            @Override
+            int getItemPrefetchCount() {
+                return 3;
+            }
+        };
+        RecyclerView.Recycler recycler = mRecyclerView.mRecycler;
+        assertEquals(RecyclerView.Recycler.DEFAULT_CACHE_SIZE, recycler.mViewCacheMax);
+        mRecyclerView.setLayoutManager(mlm);
+        assertEquals(RecyclerView.Recycler.DEFAULT_CACHE_SIZE + 3, recycler.mViewCacheMax);
     }
 
     static class MockLayoutManager extends RecyclerView.LayoutManager {

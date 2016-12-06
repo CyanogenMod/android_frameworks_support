@@ -40,7 +40,7 @@ class PathParser {
      * @throws IllegalArgumentException       if {@code start > end}
      * @throws NullPointerException           if {@code original == null}
      */
-    private static float[] copyOfRange(float[] original, int start, int end) {
+    static float[] copyOfRange(float[] original, int start, int end) {
         if (start > end) {
             throw new IllegalArgumentException();
         }
@@ -183,6 +183,9 @@ class PathParser {
         // next float starts with a '-' or a '.'.
         int mEndPosition;
         boolean mEndWithNegOrDot;
+
+        ExtractFloatResult() {
+        }
     }
 
     /**
@@ -294,12 +297,12 @@ class PathParser {
         char type;
         float[] params;
 
-        private PathDataNode(char type, float[] params) {
+        PathDataNode(char type, float[] params) {
             this.type = type;
             this.params = params;
         }
 
-        private PathDataNode(PathDataNode n) {
+        PathDataNode(PathDataNode n) {
             type = n.type;
             params = copyOfRange(n.params, 0, n.params.length);
         }
@@ -718,12 +721,17 @@ class PathParser {
                 double q2x = e2x - alpha * ep2x;
                 double q2y = e2y - alpha * ep2y;
 
-                p.cubicTo((float) q1x,
-                        (float) q1y,
-                        (float) q2x,
-                        (float) q2y,
-                        (float) e2x,
-                        (float) e2y);
+                // Use the extra math below and relative cubicTo function, just to work around
+                // one issue with VM and proguard.
+                final float delta_q1x = (float) q1x - (float) e1x;
+                final float delta_q1y = (float) q1y - (float) e1y;
+                final float delta_q2x = (float) q2x - (float) e1x;
+                final float delta_q2y = (float) q2y - (float) e1y;
+                final float delta_e2x = (float) e2x - (float) e1x;
+                final float delta_e2y = (float) e2y - (float) e1y;
+
+                p.rCubicTo(delta_q1x, delta_q1y, delta_q2x, delta_q2y, delta_e2x, delta_e2y);
+
                 eta1 = eta2;
                 e1x = e2x;
                 e1y = e2y;

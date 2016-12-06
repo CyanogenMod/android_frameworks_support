@@ -115,7 +115,6 @@ public class DrawerLayout extends ViewGroup implements DrawerLayoutImpl {
      */
     public static final int STATE_SETTLING = ViewDragHelper.STATE_SETTLING;
 
-    /** @hide */
     @IntDef({LOCK_MODE_UNLOCKED, LOCK_MODE_LOCKED_CLOSED, LOCK_MODE_LOCKED_OPEN,
             LOCK_MODE_UNDEFINED})
     @Retention(RetentionPolicy.SOURCE)
@@ -143,7 +142,6 @@ public class DrawerLayout extends ViewGroup implements DrawerLayoutImpl {
      */
     public static final int LOCK_MODE_UNDEFINED = 3;
 
-    /** @hide */
     @IntDef({Gravity.LEFT, Gravity.RIGHT, GravityCompat.START, GravityCompat.END})
     @Retention(RetentionPolicy.SOURCE)
     private @interface EdgeGravity {}
@@ -173,12 +171,12 @@ public class DrawerLayout extends ViewGroup implements DrawerLayoutImpl {
 
     private static final float TOUCH_SLOP_SENSITIVITY = 1.f;
 
-    private static final int[] LAYOUT_ATTRS = new int[] {
+    static final int[] LAYOUT_ATTRS = new int[] {
             android.R.attr.layout_gravity
     };
 
     /** Whether we can use NO_HIDE_DESCENDANTS accessibility importance. */
-    private static final boolean CAN_HIDE_DESCENDANTS = Build.VERSION.SDK_INT >= 19;
+    static final boolean CAN_HIDE_DESCENDANTS = Build.VERSION.SDK_INT >= 19;
 
     /** Whether the drawer shadow comes from setting elevation on the drawer. */
     private static final boolean SET_DRAWER_SHADOW_FROM_ELEVATION =
@@ -506,7 +504,7 @@ public class DrawerLayout extends ViewGroup implements DrawerLayoutImpl {
      * @param gravity Which drawer the shadow should apply to
      */
     public void setDrawerShadow(@DrawableRes int resId, @EdgeGravity int gravity) {
-        setDrawerShadow(getResources().getDrawable(resId), gravity);
+        setDrawerShadow(ContextCompat.getDrawable(getContext(), resId), gravity);
     }
 
     /**
@@ -884,8 +882,6 @@ public class DrawerLayout extends ViewGroup implements DrawerLayoutImpl {
             if (hasWindowFocus()) {
                 sendAccessibilityEvent(AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED);
             }
-
-            drawerView.requestFocus();
         }
     }
 
@@ -1864,7 +1860,7 @@ public class DrawerLayout extends ViewGroup implements DrawerLayoutImpl {
         return findVisibleDrawer() != null;
     }
 
-    private View findVisibleDrawer() {
+    View findVisibleDrawer() {
         final int childCount = getChildCount();
         for (int i = 0; i < childCount; i++) {
             final View child = getChildAt(i);
@@ -1995,7 +1991,7 @@ public class DrawerLayout extends ViewGroup implements DrawerLayoutImpl {
         }
     }
 
-    private static boolean includeChildForAccessibility(View child) {
+    static boolean includeChildForAccessibility(View child) {
         // If the child is not important for accessibility we make
         // sure this hides the entire subtree rooted at it as the
         // IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDATS is not
@@ -2146,7 +2142,7 @@ public class DrawerLayout extends ViewGroup implements DrawerLayoutImpl {
             postDelayed(mPeekRunnable, PEEK_DELAY);
         }
 
-        private void peekDrawer() {
+        void peekDrawer() {
             final View toCapture;
             final int childLeft;
             final int peekDistance = mDragger.getEdgeSize();
@@ -2226,9 +2222,9 @@ public class DrawerLayout extends ViewGroup implements DrawerLayoutImpl {
         private static final int FLAG_IS_CLOSING = 0x4;
 
         public int gravity = Gravity.NO_GRAVITY;
-        private float onScreen;
-        private boolean isPeeking;
-        private int openState;
+        float onScreen;
+        boolean isPeeking;
+        int openState;
 
         public LayoutParams(Context c, AttributeSet attrs) {
             super(c, attrs);

@@ -160,7 +160,7 @@ public class SwitchCompat extends CompoundButton {
     private Layout mOnLayout;
     private Layout mOffLayout;
     private TransformationMethod mSwitchTransformationMethod;
-    private ThumbAnimation mPositionAnimator;
+    ThumbAnimation mPositionAnimator;
 
     @SuppressWarnings("hiding")
     private final Rect mTempRect = new Rect();
@@ -282,7 +282,8 @@ public class SwitchCompat extends CompoundButton {
      * @attr ref android.support.v7.appcompat.R.styleable#SwitchCompat_switchTextAppearance
      */
     public void setSwitchTextAppearance(Context context, int resid) {
-        TypedArray appearance = context.obtainStyledAttributes(resid, R.styleable.TextAppearance);
+        final TintTypedArray appearance = TintTypedArray.obtainStyledAttributes(context, resid,
+                R.styleable.TextAppearance);
 
         ColorStateList colors;
         int ts;
@@ -1046,7 +1047,7 @@ public class SwitchCompat extends CompoundButton {
      *
      * @param position new position between [0,1]
      */
-    private void setThumbPosition(float position) {
+    void setThumbPosition(float position) {
         mThumbPosition = position;
         invalidate();
     }
@@ -1424,7 +1425,7 @@ public class SwitchCompat extends CompoundButton {
         final float mEndPosition;
         final float mDiff;
 
-        private ThumbAnimation(float startPosition, float endPosition) {
+        ThumbAnimation(float startPosition, float endPosition) {
             mStartPosition = startPosition;
             mEndPosition = endPosition;
             mDiff = endPosition - startPosition;

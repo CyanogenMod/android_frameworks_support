@@ -485,7 +485,7 @@ public class MediaRouteButton extends View {
         }
     }
 
-    private void refreshRoute() {
+    void refreshRoute() {
         if (mAttachedToWindow) {
             final MediaRouter.RouteInfo route = mRouter.getSelectedRoute();
             final boolean isRemote = !route.isDefaultOrBluetooth()
@@ -513,6 +513,9 @@ public class MediaRouteButton extends View {
                     }
                 }
             }
+
+            setEnabled(mRouter.isRouteAvailable(mSelector,
+                    MediaRouter.AVAILABILITY_FLAG_IGNORE_DEFAULT_ROUTE));
         }
     }
 
@@ -529,6 +532,9 @@ public class MediaRouteButton extends View {
     }
 
     private final class MediaRouterCallback extends MediaRouter.Callback {
+        MediaRouterCallback() {
+        }
+
         @Override
         public void onRouteAdded(MediaRouter router, MediaRouter.RouteInfo info) {
             refreshRoute();

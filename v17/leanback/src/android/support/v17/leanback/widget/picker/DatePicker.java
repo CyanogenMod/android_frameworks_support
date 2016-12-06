@@ -16,6 +16,7 @@ package android.support.v17.leanback.widget.picker;
 
 import android.content.Context;
 import android.content.res.TypedArray;
+import android.support.annotation.RestrictTo;
 import android.support.v17.leanback.R;
 import android.text.TextUtils;
 import android.util.AttributeSet;
@@ -29,6 +30,8 @@ import java.util.Calendar;
 import java.util.Locale;
 import java.util.TimeZone;
 
+import static android.support.annotation.RestrictTo.Scope.GROUP_ID;
+
 /**
  * {@link DatePicker} is a directly subclass of {@link Picker}.
  * This class is a widget for selecting a date. The date can be selected by a
@@ -41,6 +44,7 @@ import java.util.TimeZone;
  * @attr ref R.styleable#lbDatePicker_datePickerFormat
  * @hide
  */
+@RestrictTo(GROUP_ID)
 public class DatePicker extends Picker {
 
     static final String LOG_TAG = "DatePicker";
@@ -352,7 +356,7 @@ public class DatePicker extends Picker {
     // scrolling vertically and thus fixes the animation jumps that used to happen when we reached
     // the endpoint date field values since the adapter values do not change while scrolling up
     // & down across a single field.
-    private void updateSpinnersImpl(boolean animation) {
+    void updateSpinnersImpl(boolean animation) {
         // set the spinner ranges respecting the min and max dates
         int dateFieldIndices[] = {mColDayIndex, mColMonthIndex, mColYearIndex};
 

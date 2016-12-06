@@ -28,9 +28,6 @@ import android.support.v17.leanback.widget.VerticalGridView;
 import android.util.Log;
 import android.view.View;
 
-/**
- * @hide from javadoc
- */
 public class BrowseTestFragment extends BrowseFragment {
     private static final String TAG = "BrowseTestFragment";
 
@@ -38,11 +35,13 @@ public class BrowseTestFragment extends BrowseFragment {
     final static int DEFAULT_REPEAT_PER_ROW = 20;
     final static long DEFAULT_LOAD_DATA_DELAY = 2000;
     final static boolean DEFAULT_TEST_ENTRANCE_TRANSITION = true;
+    final static boolean DEFAULT_SET_ADAPTER_AFTER_DATA_LOAD = false;
 
     static int NUM_ROWS = DEFAULT_NUM_ROWS;
     static int REPEAT_PER_ROW = DEFAULT_REPEAT_PER_ROW;
     static long LOAD_DATA_DELAY = DEFAULT_LOAD_DATA_DELAY;
     static boolean TEST_ENTRANCE_TRANSITION = DEFAULT_TEST_ENTRANCE_TRANSITION;
+    static boolean SET_ADAPTER_AFTER_DATA_LOAD = DEFAULT_SET_ADAPTER_AFTER_DATA_LOAD;
 
     private ArrayObjectAdapter mRowsAdapter;
 
@@ -55,6 +54,10 @@ public class BrowseTestFragment extends BrowseFragment {
         Log.i(TAG, "onCreate");
         super.onCreate(savedInstanceState);
 
+        if (!SET_ADAPTER_AFTER_DATA_LOAD) {
+            setupRows();
+        }
+
         setTitle("BrowseTestFragment");
         setHeadersState(HEADERS_ENABLED);
 
@@ -65,7 +68,6 @@ public class BrowseTestFragment extends BrowseFragment {
             }
         });
 
-        setupRows();
         setOnItemViewClickedListener(new ItemViewClickedListener());
         setOnItemViewSelectedListener(new OnItemViewSelectedListener() {
             @Override
@@ -84,6 +86,9 @@ public class BrowseTestFragment extends BrowseFragment {
         new Handler().postDelayed(new Runnable() {
             @Override
             public void run() {
+                if (SET_ADAPTER_AFTER_DATA_LOAD) {
+                    setupRows();
+                }
                 loadData();
                 startEntranceTransition();
             }
@@ -114,7 +119,6 @@ public class BrowseTestFragment extends BrowseFragment {
             HeaderItem header = new HeaderItem(i, "Row " + i);
             mRowsAdapter.add(new ListRow(header, listRowAdapter));
         }
-
     }
 
     private final class ItemViewClickedListener implements OnItemViewClickedListener {

@@ -28,6 +28,8 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Parcelable;
 import android.support.annotation.ColorInt;
+import android.support.annotation.NonNull;
+import android.support.annotation.RestrictTo;
 import android.support.v4.os.BuildCompat;
 import android.support.v4.view.GravityCompat;
 import android.view.Gravity;
@@ -36,6 +38,8 @@ import android.widget.RemoteViews;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+
+import static android.support.annotation.RestrictTo.Scope.GROUP_ID;
 
 /**
  * Helper for accessing features in {@link android.app.Notification}
@@ -485,7 +489,7 @@ public class NotificationCompat {
      */
     public static final String CATEGORY_STATUS = NotificationCompatApi21.CATEGORY_STATUS;
 
-    private static final NotificationCompatImpl IMPL;
+    static final NotificationCompatImpl IMPL;
 
     interface NotificationCompatImpl {
         public Notification build(Builder b, BuilderExtender extender);
@@ -510,6 +514,7 @@ public class NotificationCompat {
      *
      * @hide
      */
+    @RestrictTo(GROUP_ID)
     protected static class BuilderExtender {
         public Notification build(Builder b, NotificationBuilderWithBuilderAccessor builder) {
             Notification n = builder.build();
@@ -867,14 +872,14 @@ public class NotificationCompat {
         }
     }
 
-    private static void addActionsToBuilder(NotificationBuilderWithActions builder,
+    static void addActionsToBuilder(NotificationBuilderWithActions builder,
             ArrayList<Action> actions) {
         for (Action action : actions) {
             builder.addAction(action);
         }
     }
 
-    private static void addStyleToBuilderJellybean(NotificationBuilderWithBuilderAccessor builder,
+    static void addStyleToBuilderJellybean(NotificationBuilderWithBuilderAccessor builder,
             Style style) {
         if (style != null) {
             if (style instanceof BigTextStyle) {
@@ -904,7 +909,7 @@ public class NotificationCompat {
         }
     }
 
-    private static void addStyleToBuilderApi24(NotificationBuilderWithBuilderAccessor builder,
+    static void addStyleToBuilderApi24(NotificationBuilderWithBuilderAccessor builder,
             Style style) {
         if (style != null) {
             if (style instanceof MessagingStyle) {
@@ -984,30 +989,40 @@ public class NotificationCompat {
         // extender.
 
         /** @hide */
+        @RestrictTo(GROUP_ID)
         public Context mContext;
 
         /** @hide */
+        @RestrictTo(GROUP_ID)
         public CharSequence mContentTitle;
         /** @hide */
+        @RestrictTo(GROUP_ID)
         public CharSequence mContentText;
         PendingIntent mContentIntent;
         PendingIntent mFullScreenIntent;
         RemoteViews mTickerView;
         /** @hide */
+        @RestrictTo(GROUP_ID)
         public Bitmap mLargeIcon;
         /** @hide */
+        @RestrictTo(GROUP_ID)
         public CharSequence mContentInfo;
         /** @hide */
+        @RestrictTo(GROUP_ID)
         public int mNumber;
         int mPriority;
         boolean mShowWhen = true;
         /** @hide */
+        @RestrictTo(GROUP_ID)
         public boolean mUseChronometer;
         /** @hide */
+        @RestrictTo(GROUP_ID)
         public Style mStyle;
         /** @hide */
+        @RestrictTo(GROUP_ID)
         public CharSequence mSubText;
         /** @hide */
+        @RestrictTo(GROUP_ID)
         public CharSequence[] mRemoteInputHistory;
         int mProgressMax;
         int mProgress;
@@ -1016,6 +1031,7 @@ public class NotificationCompat {
         boolean mGroupSummary;
         String mSortKey;
         /** @hide */
+        @RestrictTo(GROUP_ID)
         public ArrayList<Action> mActions = new ArrayList<Action>();
         boolean mLocalOnly = false;
         String mCategory;
@@ -1028,6 +1044,7 @@ public class NotificationCompat {
         RemoteViews mHeadsUpContentView;
 
         /** @hide */
+        @RestrictTo(GROUP_ID)
         public Notification mNotification = new Notification();
         public ArrayList<String> mPeople;
 
@@ -1730,6 +1747,7 @@ public class NotificationCompat {
         /**
          * @hide
          */
+        @RestrictTo(GROUP_ID)
         protected BuilderExtender getExtender() {
             return new BuilderExtender();
         }
@@ -1745,6 +1763,7 @@ public class NotificationCompat {
         /**
          * @hide
          */
+        @RestrictTo(GROUP_ID)
         public RemoteViews getContentView() {
             return mContentView;
         }
@@ -1752,6 +1771,7 @@ public class NotificationCompat {
         /**
          * @hide
          */
+        @RestrictTo(GROUP_ID)
         public RemoteViews getBigContentView() {
             return mBigContentView;
         }
@@ -1759,6 +1779,7 @@ public class NotificationCompat {
         /**
          * @hide
          */
+        @RestrictTo(GROUP_ID)
         public RemoteViews getHeadsUpContentView() {
             return mHeadsUpContentView;
         }
@@ -1768,6 +1789,7 @@ public class NotificationCompat {
          *
          * @hide
          */
+        @RestrictTo(GROUP_ID)
         public long getWhenIfShowing() {
             return mShowWhen ? mNotification.when : 0;
         }
@@ -1777,6 +1799,7 @@ public class NotificationCompat {
          *
          * @hide
          */
+        @RestrictTo(GROUP_ID)
         public int getPriority() {
             return mPriority;
         }
@@ -1786,6 +1809,7 @@ public class NotificationCompat {
          *
          * @hide
          */
+        @RestrictTo(GROUP_ID)
         public int getColor() {
             return mColor;
         }
@@ -1796,6 +1820,7 @@ public class NotificationCompat {
          *
          * @hide
          */
+        @RestrictTo(GROUP_ID)
         protected CharSequence resolveText() {
             return mContentText;
         }
@@ -1805,6 +1830,7 @@ public class NotificationCompat {
          *
          * @hide
          */
+        @RestrictTo(GROUP_ID)
         protected CharSequence resolveTitle() {
             return mContentTitle;
         }
@@ -1843,6 +1869,7 @@ public class NotificationCompat {
         /**
          * @hide
          */
+        @RestrictTo(GROUP_ID)
         // TODO: implement for all styles
         public void addCompatExtras(Bundle extras) {
         }
@@ -1850,6 +1877,7 @@ public class NotificationCompat {
         /**
          * @hide
          */
+        @RestrictTo(GROUP_ID)
         // TODO: implement for all styles
         protected void restoreFromCompatExtras(Bundle extras) {
         }
@@ -2022,12 +2050,12 @@ public class NotificationCompat {
         }
 
         /**
-         * @param userDisplayName the name to be displayed for any replies sent by the user before the
-         * posting app reposts the notification with those messages after they've been actually
-         * sent and in previous messages sent by the user added in
+         * @param userDisplayName Required - the name to be displayed for any replies sent by the
+         * user before the posting app reposts the notification with those messages after they've
+         * been actually sent and in previous messages sent by the user added in
          * {@link #addMessage(Message)}
          */
-        public MessagingStyle(CharSequence userDisplayName) {
+        public MessagingStyle(@NonNull CharSequence userDisplayName) {
             mUserDisplayName = userDisplayName;
         }
 
@@ -2140,6 +2168,7 @@ public class NotificationCompat {
         /**
          * @hide
          */
+        @RestrictTo(GROUP_ID)
         @Override
         protected void restoreFromCompatExtras(Bundle extras) {
             mMessages.clear();
@@ -2385,7 +2414,7 @@ public class NotificationCompat {
      * to attach actions.
      */
     public static class Action extends NotificationCompatBase.Action {
-        private final Bundle mExtras;
+        final Bundle mExtras;
         private final RemoteInput[] mRemoteInputs;
         private boolean mAllowGeneratedReplies = false;
 
@@ -2407,7 +2436,7 @@ public class NotificationCompat {
             this(icon, title, intent, new Bundle(), null, false);
         }
 
-        private Action(int icon, CharSequence title, PendingIntent intent, Bundle extras,
+        Action(int icon, CharSequence title, PendingIntent intent, Bundle extras,
                 RemoteInput[] remoteInputs, boolean allowGeneratedReplies) {
             this.icon = icon;
             this.title = NotificationCompat.Builder.limitCharSequenceLength(title);
@@ -2827,6 +2856,7 @@ public class NotificationCompat {
         }
 
         /** @hide */
+        @RestrictTo(GROUP_ID)
         public static final Factory FACTORY = new Factory() {
             @Override
             public NotificationCompatBase.Action build(int icon, CharSequence title,
@@ -2982,6 +3012,7 @@ public class NotificationCompat {
         private static final String KEY_GRAVITY = "gravity";
         private static final String KEY_HINT_SCREEN_TIMEOUT = "hintScreenTimeout";
         private static final String KEY_DISMISSAL_ID = "dismissalId";
+        private static final String KEY_BRIDGE_TAG = "bridgeTag";
 
         // Flags bitwise-ored to mFlags
         private static final int FLAG_CONTENT_INTENT_AVAILABLE_OFFLINE = 0x1;
@@ -3011,6 +3042,7 @@ public class NotificationCompat {
         private int mGravity = DEFAULT_GRAVITY;
         private int mHintScreenTimeout;
         private String mDismissalId;
+        private String mBridgeTag;
 
         /**
          * Create a {@link NotificationCompat.WearableExtender} with default
@@ -3051,6 +3083,7 @@ public class NotificationCompat {
                 mGravity = wearableBundle.getInt(KEY_GRAVITY, DEFAULT_GRAVITY);
                 mHintScreenTimeout = wearableBundle.getInt(KEY_HINT_SCREEN_TIMEOUT);
                 mDismissalId = wearableBundle.getString(KEY_DISMISSAL_ID);
+                mBridgeTag = wearableBundle.getString(KEY_BRIDGE_TAG);
             }
         }
 
@@ -3106,6 +3139,9 @@ public class NotificationCompat {
             if (mDismissalId != null) {
                 wearableBundle.putString(KEY_DISMISSAL_ID, mDismissalId);
             }
+            if (mBridgeTag != null) {
+                wearableBundle.putString(KEY_BRIDGE_TAG, mBridgeTag);
+            }
 
             builder.getExtras().putBundle(EXTRA_WEARABLE_EXTENSIONS, wearableBundle);
             return builder;
@@ -3127,6 +3163,7 @@ public class NotificationCompat {
             that.mGravity = this.mGravity;
             that.mHintScreenTimeout = this.mHintScreenTimeout;
             that.mDismissalId = this.mDismissalId;
+            that.mBridgeTag = this.mBridgeTag;
             return that;
         }
 
@@ -3615,12 +3652,11 @@ public class NotificationCompat {
         }
 
         /**
-         * When you post a notification, if you set the dismissal id field, then when that
-         * notification is canceled, notifications on other wearables and the paired Android phone
-         * having that same dismissal id will also be canceled.  Note that this only works if you
-         * have notification bridge mode set to NO_BRIDGING in your Wear app manifest.  See
+         * Sets the dismissal id for this notification. If a notification is posted with a
+         * dismissal id, then when that notification is canceled, notifications on other wearables
+         * and the paired Android phone having that same dismissal id will also be canceled. See
          * <a href="{@docRoot}wear/notifications/index.html">Adding Wearable Features to
-         * Notifications</a> for more information on how to use the bridge mode feature.
+         * Notifications</a> for more information.
          * @param dismissalId the dismissal id of the notification.
          * @return this object for method chaining
          */
@@ -3635,6 +3671,27 @@ public class NotificationCompat {
          */
         public String getDismissalId() {
             return mDismissalId;
+        }
+
+        /**
+         * Sets a bridge tag for this notification. A bridge tag can be set for notifications
+         * posted from a phone to provide finer-grained control on what notifications are bridged
+         * to wearables. See <a href="{@docRoot}wear/notifications/index.html">Adding Wearable
+         * Features to Notifications</a> for more information.
+         * @param bridgeTag the bridge tag of the notification.
+         * @return this object for method chaining
+         */
+        public WearableExtender setBridgeTag(String bridgeTag) {
+            mBridgeTag = bridgeTag;
+            return this;
+        }
+
+        /**
+         * Returns the bridge tag of the notification.
+         * @return the bridge tag or null if not present.
+         */
+        public String getBridgeTag() {
+            return mBridgeTag;
         }
 
         private void setFlag(int mask, boolean value) {
@@ -3891,7 +3948,6 @@ public class NotificationCompat {
                 return mLatestTimestamp;
             }
 
-            /** @hide */
             static final Factory FACTORY = new Factory() {
                 @Override
                 public UnreadConversation build(
@@ -4006,7 +4062,7 @@ public class NotificationCompat {
      * Update the bundle to have a typed array so fetches in the future don't need
      * to do an array copy.
      */
-    private static Notification[] getNotificationArrayFromBundle(Bundle bundle, String key) {
+    static Notification[] getNotificationArrayFromBundle(Bundle bundle, String key) {
         Parcelable[] array = bundle.getParcelableArray(key);
         if (array instanceof Notification[] || array == null) {
             return (Notification[]) array;

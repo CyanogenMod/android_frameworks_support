@@ -27,6 +27,7 @@ import android.support.annotation.ColorInt;
 import android.support.annotation.IntDef;
 import android.support.annotation.IntRange;
 import android.support.annotation.NonNull;
+import android.support.annotation.RestrictTo;
 import android.support.annotation.StringRes;
 import android.support.design.R;
 import android.support.v4.view.OnApplyWindowInsetsListener;
@@ -52,6 +53,7 @@ import android.widget.TextView;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 
+import static android.support.annotation.RestrictTo.Scope.GROUP_ID;
 import static android.support.design.widget.AnimationUtils.FAST_OUT_SLOW_IN_INTERPOLATOR;
 
 /**
@@ -89,6 +91,7 @@ public final class Snackbar {
         public static final int DISMISS_EVENT_CONSECUTIVE = 4;
 
         /** @hide */
+        @RestrictTo(GROUP_ID)
         @IntDef({DISMISS_EVENT_SWIPE, DISMISS_EVENT_ACTION, DISMISS_EVENT_TIMEOUT,
                 DISMISS_EVENT_MANUAL, DISMISS_EVENT_CONSECUTIVE})
         @Retention(RetentionPolicy.SOURCE)
@@ -124,6 +127,7 @@ public final class Snackbar {
     /**
      * @hide
      */
+    @RestrictTo(GROUP_ID)
     @IntDef({LENGTH_INDEFINITE, LENGTH_SHORT, LENGTH_LONG})
     @IntRange(from = 1)
     @Retention(RetentionPolicy.SOURCE)
@@ -154,9 +158,9 @@ public final class Snackbar {
     static final int ANIMATION_DURATION = 250;
     static final int ANIMATION_FADE_DURATION = 180;
 
-    private static final Handler sHandler;
-    private static final int MSG_SHOW = 0;
-    private static final int MSG_DISMISS = 1;
+    static final Handler sHandler;
+    static final int MSG_SHOW = 0;
+    static final int MSG_DISMISS = 1;
 
     static {
         sHandler = new Handler(Looper.getMainLooper(), new Handler.Callback() {
@@ -177,7 +181,7 @@ public final class Snackbar {
 
     private final ViewGroup mTargetParent;
     private final Context mContext;
-    private final SnackbarLayout mView;
+    final SnackbarLayout mView;
     private int mDuration;
     private Callback mCallback;
 
@@ -401,7 +405,7 @@ public final class Snackbar {
         dispatchDismiss(Callback.DISMISS_EVENT_MANUAL);
     }
 
-    private void dispatchDismiss(@Callback.DismissEvent int event) {
+    void dispatchDismiss(@Callback.DismissEvent int event) {
         SnackbarManager.getInstance().dismiss(mManagerCallback, event);
     }
 
@@ -429,7 +433,7 @@ public final class Snackbar {
         return SnackbarManager.getInstance().isCurrentOrNext(mManagerCallback);
     }
 
-    private final SnackbarManager.Callback mManagerCallback = new SnackbarManager.Callback() {
+    final SnackbarManager.Callback mManagerCallback = new SnackbarManager.Callback() {
         @Override
         public void show() {
             sHandler.sendMessage(sHandler.obtainMessage(MSG_SHOW, Snackbar.this));
@@ -531,7 +535,7 @@ public final class Snackbar {
         }
     }
 
-    private void animateViewIn() {
+    void animateViewIn() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.ICE_CREAM_SANDWICH) {
             ViewCompat.setTranslationY(mView, mView.getHeight());
             ViewCompat.animate(mView)
@@ -618,14 +622,14 @@ public final class Snackbar {
         }
     }
 
-    private void onViewShown() {
+    void onViewShown() {
         SnackbarManager.getInstance().onShown(mManagerCallback);
         if (mCallback != null) {
             mCallback.onShown(this);
         }
     }
 
-    private void onViewHidden(int event) {
+    void onViewHidden(int event) {
         // First tell the SnackbarManager that it has been dismissed
         SnackbarManager.getInstance().onDismissed(mManagerCallback);
         // Now call the dismiss listener (if available)
@@ -650,13 +654,14 @@ public final class Snackbar {
     /**
      * Returns true if we should animate the Snackbar view in/out.
      */
-    private boolean shouldAnimate() {
+    boolean shouldAnimate() {
         return !mAccessibilityManager.isEnabled();
     }
 
     /**
      * @hide
      */
+    @RestrictTo(GROUP_ID)
     public static class SnackbarLayout extends LinearLayout {
         private TextView mMessageView;
         private Button mActionView;

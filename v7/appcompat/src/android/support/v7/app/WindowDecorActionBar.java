@@ -24,6 +24,7 @@ import android.content.res.Resources;
 import android.content.res.TypedArray;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
+import android.support.annotation.RestrictTo;
 import android.support.v4.app.FragmentActivity;
 import android.support.v4.app.FragmentTransaction;
 import android.support.v4.view.ViewCompat;
@@ -65,12 +66,15 @@ import android.widget.SpinnerAdapter;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 
+import static android.support.annotation.RestrictTo.Scope.GROUP_ID;
+
 /**
  * WindowDecorActionBar is the ActionBar implementation used
  * by devices of all screen sizes as part of the window decor layout.
  *
  * @hide
  */
+@RestrictTo(GROUP_ID)
 public class WindowDecorActionBar extends ActionBar implements
         ActionBarOverlayLayout.ActionBarVisibilityCallback {
     private static final String TAG = "WindowDecorActionBar";
@@ -83,17 +87,17 @@ public class WindowDecorActionBar extends ActionBar implements
      */
     private static final boolean ALLOW_SHOW_HIDE_ANIMATIONS = Build.VERSION.SDK_INT >= 14;
 
-    private Context mContext;
+    Context mContext;
     private Context mThemedContext;
     private Activity mActivity;
     private Dialog mDialog;
 
-    private ActionBarOverlayLayout mOverlayLayout;
-    private ActionBarContainer mContainerView;
-    private DecorToolbar mDecorToolbar;
-    private ActionBarContextView mContextView;
-    private View mContentView;
-    private ScrollingTabContainerView mTabScrollView;
+    ActionBarOverlayLayout mOverlayLayout;
+    ActionBarContainer mContainerView;
+    DecorToolbar mDecorToolbar;
+    ActionBarContextView mContextView;
+    View mContentView;
+    ScrollingTabContainerView mTabScrollView;
 
     private ArrayList<TabImpl> mTabs = new ArrayList<TabImpl>();
 
@@ -120,14 +124,14 @@ public class WindowDecorActionBar extends ActionBar implements
 
     private int mCurWindowVisibility = View.VISIBLE;
 
-    private boolean mContentAnimations = true;
-    private boolean mHiddenByApp;
-    private boolean mHiddenBySystem;
+    boolean mContentAnimations = true;
+    boolean mHiddenByApp;
+    boolean mHiddenBySystem;
     private boolean mShowingForMode;
 
     private boolean mNowShowing = true;
 
-    private ViewPropertyAnimatorCompatSet mCurrentShowAnim;
+    ViewPropertyAnimatorCompatSet mCurrentShowAnim;
     private boolean mShowHideAnimationEnabled;
     boolean mHideOnContentScroll;
 
@@ -184,6 +188,7 @@ public class WindowDecorActionBar extends ActionBar implements
      * Only for edit mode.
      * @hide
      */
+    @RestrictTo(GROUP_ID)
     public WindowDecorActionBar(View layout) {
         assert layout.isInEditMode();
         init(layout);
@@ -729,7 +734,7 @@ public class WindowDecorActionBar extends ActionBar implements
         mOverlayLayout.setActionBarHideOffset(offset);
     }
 
-    private static boolean checkShowingFlags(boolean hiddenByApp, boolean hiddenBySystem,
+    static boolean checkShowingFlags(boolean hiddenByApp, boolean hiddenBySystem,
             boolean showingForMode) {
         if (showingForMode) {
             return true;
@@ -956,6 +961,7 @@ public class WindowDecorActionBar extends ActionBar implements
     /**
      * @hide
      */
+    @RestrictTo(GROUP_ID)
     public class ActionModeImpl extends ActionMode implements MenuBuilder.Callback {
         private final Context mActionModeContext;
         private final MenuBuilder mMenu;
@@ -1129,6 +1135,7 @@ public class WindowDecorActionBar extends ActionBar implements
     /**
      * @hide
      */
+    @RestrictTo(GROUP_ID)
     public class TabImpl extends ActionBar.Tab {
         private ActionBar.TabListener mCallback;
         private Object mTag;

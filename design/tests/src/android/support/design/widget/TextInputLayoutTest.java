@@ -16,7 +16,9 @@
 
 package android.support.design.widget;
 
+import static android.support.design.testutils.TestUtilsActions.setCompoundDrawablesRelative;
 import static android.support.design.testutils.TestUtilsActions.setEnabled;
+import static android.support.design.testutils.TestUtilsMatchers.withCompoundDrawable;
 import static android.support.design.testutils.TextInputLayoutActions.setError;
 import static android.support.design.testutils.TextInputLayoutActions.setErrorEnabled;
 import static android.support.design.testutils.TextInputLayoutActions
@@ -37,7 +39,11 @@ import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
 import android.app.Activity;
+import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
+import android.graphics.drawable.Drawable;
 import android.support.design.test.R;
+import android.support.test.annotation.UiThreadTest;
 import android.support.test.espresso.NoMatchingViewException;
 import android.support.test.espresso.ViewAssertion;
 import android.test.suitebuilder.annotation.SmallTest;
@@ -156,6 +162,37 @@ public class TextInputLayoutTest extends BaseInstrumentationTestCase<TextInputLa
     }
 
     @Test
+    public void testPasswordToggleMaintainsCompoundDrawables() {
+        // Set a known set of test compound drawables on the EditText
+        final Drawable start = new ColorDrawable(Color.RED);
+        final Drawable top = new ColorDrawable(Color.GREEN);
+        final Drawable end = new ColorDrawable(Color.BLUE);
+        final Drawable bottom = new ColorDrawable(Color.BLACK);
+        onView(withId(R.id.textinput_edittext_pwd))
+                .perform(setCompoundDrawablesRelative(start, top, end, bottom));
+
+        // Enable the password toggle and check that the start, top and bottom drawables are
+        // maintained
+        onView(withId(R.id.textinput_password))
+                .perform(setPasswordVisibilityToggleEnabled(true));
+        onView(withId(R.id.textinput_edittext_pwd))
+                .check(matches(withCompoundDrawable(0, start)))
+                .check(matches(withCompoundDrawable(1, top)))
+                .check(matches(not(withCompoundDrawable(2, end))))
+                .check(matches(withCompoundDrawable(3, bottom)));
+
+        // Now disable the password toggle and check that all of the original compound drawables
+        // are set
+        onView(withId(R.id.textinput_password))
+                .perform(setPasswordVisibilityToggleEnabled(false));
+        onView(withId(R.id.textinput_edittext_pwd))
+                .check(matches(withCompoundDrawable(0, start)))
+                .check(matches(withCompoundDrawable(1, top)))
+                .check(matches(withCompoundDrawable(2, end)))
+                .check(matches(withCompoundDrawable(3, bottom)));
+    }
+
+    @Test
     public void testSetEnabledFalse() {
         // First click on the EditText, so that it is focused and the hint collapses...
         onView(withId(R.id.textinput_edittext)).perform(click());
@@ -178,6 +215,19 @@ public class TextInputLayoutTest extends BaseInstrumentationTestCase<TextInputLa
 
         // Now check that the EditText is no longer enabled
         onView(withId(R.id.textinput_edittext)).check(matches(not(isEnabled())));
+    }
+
+    /**
+     * Regression test for b/31663756.
+     */
+    @UiThreadTest
+    @Test
+    public void testDrawableStateChanged() {
+        final Activity activity = mActivityTestRule.getActivity();
+        final TextInputLayout layout = (TextInputLayout) activity.findViewById(R.id.textinput);
+
+        // Force a drawable state change.
+        layout.drawableStateChanged();
     }
 
     static ViewAssertion isHintExpanded(final boolean expanded) {

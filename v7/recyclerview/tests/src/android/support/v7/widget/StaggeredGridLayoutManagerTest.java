@@ -135,17 +135,17 @@ public class StaggeredGridLayoutManagerTest extends BaseStaggeredGridLayoutManag
         assertEquals("last completely visible item from span 1 should be 1", 1, into[1]);
         assertEquals("first fully visible child should be at position",
                 0, mRecyclerView.getChildViewHolder(mLayoutManager.
-                        findFirstVisibleItemClosestToStart(true, true)).getPosition());
+                        findFirstVisibleItemClosestToStart(true)).getPosition());
         assertEquals("last fully visible child should be at position",
                 4, mRecyclerView.getChildViewHolder(mLayoutManager.
-                        findFirstVisibleItemClosestToEnd(true, true)).getPosition());
+                        findFirstVisibleItemClosestToEnd(true)).getPosition());
 
         assertEquals("first visible child should be at position",
                 0, mRecyclerView.getChildViewHolder(mLayoutManager.
-                        findFirstVisibleItemClosestToStart(false, true)).getPosition());
+                        findFirstVisibleItemClosestToStart(false)).getPosition());
         assertEquals("last visible child should be at position",
                 4, mRecyclerView.getChildViewHolder(mLayoutManager.
-                        findFirstVisibleItemClosestToEnd(false, true)).getPosition());
+                        findFirstVisibleItemClosestToEnd(false)).getPosition());
 
     }
 
@@ -323,7 +323,8 @@ public class StaggeredGridLayoutManagerTest extends BaseStaggeredGridLayoutManag
                         stl.addState(new int[]{android.R.attr.state_focused},
                                 new ColorDrawable(Color.RED));
                         stl.addState(StateSet.WILD_CARD, new ColorDrawable(Color.BLUE));
-                        testViewHolder.itemView.setBackground(stl);
+                        //noinspection deprecation used to support kitkat tests
+                        testViewHolder.itemView.setBackgroundDrawable(stl);
                         return testViewHolder;
                     }
 
@@ -681,9 +682,15 @@ public class StaggeredGridLayoutManagerTest extends BaseStaggeredGridLayoutManag
         smoothScrollToPosition(mAdapter.getItemCount() / 2);
         final int changePosition = mAdapter.getItemCount() / 4;
         mLayoutManager.expectLayouts(1);
-        mAdapter.changeAndNotify(changePosition, 1);
-        mLayoutManager.assertNoLayout("no layout should happen when an invisible child is updated",
-                1);
+        if (RecyclerView.POST_UPDATES_ON_ANIMATION) {
+            mAdapter.changeAndNotify(changePosition, 1);
+            mLayoutManager.assertNoLayout("no layout should happen when an invisible child is "
+                    + "updated", 1);
+        } else {
+            mAdapter.changeAndNotify(changePosition, 1);
+            mLayoutManager.waitForLayout(1);
+        }
+
         // delete an item before visible area
         int deletedPosition = mLayoutManager.getPosition(mLayoutManager.getChildAt(0)) - 2;
         assertTrue("test sanity", deletedPosition >= 0);
@@ -800,10 +807,10 @@ public class StaggeredGridLayoutManagerTest extends BaseStaggeredGridLayoutManag
                 .asRecord(event);
         final int start = mRecyclerView
                 .getChildLayoutPosition(
-                        mLayoutManager.findFirstVisibleItemClosestToStart(false, true));
+                        mLayoutManager.findFirstVisibleItemClosestToStart(false));
         final int end = mRecyclerView
                 .getChildLayoutPosition(
-                        mLayoutManager.findFirstVisibleItemClosestToEnd(false, true));
+                        mLayoutManager.findFirstVisibleItemClosestToEnd(false));
         assertEquals("first item position should match",
                 Math.min(start, end), record.getFromIndex());
         assertEquals("last item position should match",

@@ -22,6 +22,7 @@ import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.StateListDrawable;
+import android.support.annotation.RestrictTo;
 import android.support.design.R;
 import android.support.v4.content.res.ResourcesCompat;
 import android.support.v4.graphics.drawable.DrawableCompat;
@@ -40,9 +41,12 @@ import android.view.ViewStub;
 import android.widget.CheckedTextView;
 import android.widget.FrameLayout;
 
+import static android.support.annotation.RestrictTo.Scope.GROUP_ID;
+
 /**
  * @hide
  */
+@RestrictTo(GROUP_ID)
 public class NavigationMenuItemView extends ForegroundLinearLayout implements MenuView.ItemView {
 
     private static final int[] CHECKED_STATE_SET = {android.R.attr.state_checked};
@@ -51,7 +55,7 @@ public class NavigationMenuItemView extends ForegroundLinearLayout implements Me
 
     private boolean mNeedsEmptyIcon;
 
-    private boolean mCheckable;
+    boolean mCheckable;
 
     private final CheckedTextView mTextView;
 
@@ -103,7 +107,7 @@ public class NavigationMenuItemView extends ForegroundLinearLayout implements Me
         setVisibility(itemData.isVisible() ? VISIBLE : GONE);
 
         if (getBackground() == null) {
-            setBackgroundDrawable(createDefaultBackground());
+            ViewCompat.setBackground(this, createDefaultBackground());
         }
 
         setCheckable(itemData.isCheckable());
@@ -250,8 +254,8 @@ public class NavigationMenuItemView extends ForegroundLinearLayout implements Me
         }
     }
 
-    public void setTextAppearance(Context context, int textAppearance) {
-        mTextView.setTextAppearance(context, textAppearance);
+    public void setTextAppearance(int textAppearance) {
+        TextViewCompat.setTextAppearance(mTextView, textAppearance);
     }
 
     public void setTextColor(ColorStateList colors) {

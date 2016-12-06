@@ -24,6 +24,7 @@ import android.content.Context;
 import android.os.Build;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
+import android.support.annotation.RestrictTo;
 import android.support.v17.leanback.R;
 import android.support.v17.leanback.transition.TransitionHelper;
 import android.support.v17.leanback.widget.GuidanceStylist;
@@ -47,6 +48,8 @@ import android.widget.LinearLayout;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import static android.support.annotation.RestrictTo.Scope.GROUP_ID;
 
 /**
  * A GuidedStepFragment is used to guide the user through a decision or series of decisions.
@@ -222,12 +225,14 @@ public class GuidedStepFragment extends Fragment implements GuidedActionAdapter.
      * Animation to slide the contents from the side (left/right).
      * @hide
      */
+    @RestrictTo(GROUP_ID)
     public static final int SLIDE_FROM_SIDE = 0;
 
     /**
      * Animation to slide the contents from the bottom.
      * @hide
      */
+    @RestrictTo(GROUP_ID)
     public static final int SLIDE_FROM_BOTTOM = 1;
 
     private static final String TAG = "GuidedStepFragment";
@@ -236,6 +241,7 @@ public class GuidedStepFragment extends Fragment implements GuidedActionAdapter.
     /**
      * @hide
      */
+    @RestrictTo(GROUP_ID)
     public static class DummyFragment extends Fragment {
         @Override
         public View onCreateView(LayoutInflater inflater, ViewGroup container,
@@ -248,7 +254,7 @@ public class GuidedStepFragment extends Fragment implements GuidedActionAdapter.
 
     private ContextThemeWrapper mThemeWrapper;
     private GuidanceStylist mGuidanceStylist;
-    private GuidedActionsStylist mActionsStylist;
+    GuidedActionsStylist mActionsStylist;
     private GuidedActionsStylist mButtonActionsStylist;
     private GuidedActionAdapter mAdapter;
     private GuidedActionAdapter mSubAdapter;
@@ -1309,6 +1315,7 @@ public class GuidedStepFragment extends Fragment implements GuidedActionAdapter.
      * For now clients(subclasses) can call this method inside the constructor.
      * @hide
      */
+    @RestrictTo(GROUP_ID)
     public void setEntranceTransitionType(int transitionType) {
       this.entranceTransitionType = transitionType;
     }
@@ -1360,7 +1367,7 @@ public class GuidedStepFragment extends Fragment implements GuidedActionAdapter.
         return 0;
     }
 
-    private void runImeAnimations(boolean entering) {
+    void runImeAnimations(boolean entering) {
         ArrayList<Animator> animators = new ArrayList<Animator>();
         if (entering) {
             mGuidanceStylist.onImeAppearing(animators);

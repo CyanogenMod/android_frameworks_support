@@ -32,6 +32,7 @@ import android.support.annotation.CallSuper;
 import android.support.annotation.DrawableRes;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.v4.content.ContextCompat;
 import android.support.v4.os.ParcelableCompat;
 import android.support.v4.os.ParcelableCompatCreatorCallbacks;
 import android.support.v4.view.accessibility.AccessibilityEventCompat;
@@ -121,7 +122,7 @@ public class ViewPager extends ViewGroup {
 
     private static final int MIN_FLING_VELOCITY = 400; // dips
 
-    private static final int[] LAYOUT_ATTRS = new int[] {
+    static final int[] LAYOUT_ATTRS = new int[] {
         android.R.attr.layout_gravity
     };
 
@@ -159,8 +160,8 @@ public class ViewPager extends ViewGroup {
 
     private final Rect mTempRect = new Rect();
 
-    private PagerAdapter mAdapter;
-    private int mCurItem;   // Index of currently displayed page.
+    PagerAdapter mAdapter;
+    int mCurItem;   // Index of currently displayed page.
     private int mRestoredCurItem = -1;
     private Parcelable mRestoredAdapterState = null;
     private ClassLoader mRestoredClassLoader = null;
@@ -487,7 +488,7 @@ public class ViewPager extends ViewGroup {
         super.onDetachedFromWindow();
     }
 
-    private void setScrollState(int newState) {
+    void setScrollState(int newState) {
         if (mScrollState == newState) {
             return;
         }
@@ -929,7 +930,7 @@ public class ViewPager extends ViewGroup {
      * @param resId Resource ID of a drawable to display between pages
      */
     public void setPageMarginDrawable(@DrawableRes int resId) {
-        setPageMarginDrawable(getContext().getResources().getDrawable(resId));
+        setPageMarginDrawable(ContextCompat.getDrawable(getContext(), resId));
     }
 
     @Override
@@ -3108,6 +3109,9 @@ public class ViewPager extends ViewGroup {
     }
 
     private class PagerObserver extends DataSetObserver {
+        PagerObserver() {
+        }
+
         @Override
         public void onChanged() {
             dataSetChanged();

@@ -18,6 +18,8 @@ package android.support.v7.widget;
 
 import android.content.Context;
 import android.os.Build;
+import android.support.annotation.RestrictTo;
+import android.support.v4.view.ViewCompat;
 import android.support.v7.appcompat.R;
 import android.support.v7.view.ActionMode;
 import android.support.v7.view.menu.MenuBuilder;
@@ -30,9 +32,12 @@ import android.view.accessibility.AccessibilityEvent;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import static android.support.annotation.RestrictTo.Scope.GROUP_ID;
+
 /**
  * @hide
  */
+@RestrictTo(GROUP_ID)
 public class ActionBarContextView extends AbsActionBarView {
     private static final String TAG = "ActionBarContextView";
 
@@ -62,8 +67,7 @@ public class ActionBarContextView extends AbsActionBarView {
 
         final TintTypedArray a = TintTypedArray.obtainStyledAttributes(context, attrs,
                 R.styleable.ActionMode, defStyle, 0);
-        setBackgroundDrawable(a.getDrawable(
-                R.styleable.ActionMode_background));
+        ViewCompat.setBackground(this, a.getDrawable(R.styleable.ActionMode_background));
         mTitleStyleRes = a.getResourceId(
                 R.styleable.ActionMode_titleTextStyle, 0);
         mSubtitleStyleRes = a.getResourceId(
@@ -179,7 +183,7 @@ public class ActionBarContextView extends AbsActionBarView {
                 LayoutParams.MATCH_PARENT);
         menu.addMenuPresenter(mActionMenuPresenter, mPopupContext);
         mMenuView = (ActionMenuView) mActionMenuPresenter.getMenuView(this);
-        mMenuView.setBackgroundDrawable(null);
+        ViewCompat.setBackground(mMenuView, null);
         addView(mMenuView, layoutParams);
     }
 

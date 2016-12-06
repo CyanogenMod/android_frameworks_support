@@ -19,6 +19,7 @@ package android.support.design.widget;
 import android.content.Context;
 import android.content.res.ColorStateList;
 import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.PorterDuff;
 import android.graphics.Rect;
@@ -92,6 +93,12 @@ import android.widget.TextView;
  *
  * &lt;/android.support.design.widget.TextInputLayout&gt;
  * </pre>
+ *
+ * <p><strong>Note:</strong> The actual view hierarchy present under TextInputLayout is
+ * <strong>NOT</strong> guaranteed to match the view hierarchy as written in XML. As a result,
+ * calls to getParent() on children of the TextInputLayout -- such as an TextInputEditText --
+ * may not return the TextInputLayout itself, but rather an intermediate View. If you need
+ * to access a View directly, set an {@code android:id} and use {@link View#findViewById(int)}.
  */
 public class TextInputLayout extends LinearLayout {
 
@@ -101,7 +108,7 @@ public class TextInputLayout extends LinearLayout {
     private static final String LOG_TAG = "TextInputLayout";
 
     private final FrameLayout mInputFrame;
-    private EditText mEditText;
+    EditText mEditText;
 
     private boolean mHintEnabled;
     private CharSequence mHint;
@@ -113,12 +120,12 @@ public class TextInputLayout extends LinearLayout {
     private int mIndicatorsAdded;
 
     private boolean mErrorEnabled;
-    private TextView mErrorView;
+    TextView mErrorView;
     private int mErrorTextAppearance;
     private boolean mErrorShown;
     private CharSequence mError;
 
-    private boolean mCounterEnabled;
+    boolean mCounterEnabled;
     private TextView mCounterView;
     private int mCounterMaxLength;
     private int mCounterTextAppearance;
@@ -131,6 +138,7 @@ public class TextInputLayout extends LinearLayout {
     private CheckableImageButton mPasswordToggleView;
     private boolean mPasswordToggledVisible;
     private Drawable mPasswordToggleDummyDrawable;
+    private Drawable mOriginalEditTextEndDrawable;
 
     private ColorStateList mPasswordToggleTintList;
     private boolean mHasPasswordToggleTintList;
@@ -143,7 +151,7 @@ public class TextInputLayout extends LinearLayout {
     // Only used for testing
     private boolean mHintExpanded;
 
-    private final CollapsingTextHelper mCollapsingTextHelper = new CollapsingTextHelper(this);
+    final CollapsingTextHelper mCollapsingTextHelper = new CollapsingTextHelper(this);
 
     private boolean mHintAnimationEnabled;
     private ValueAnimatorCompat mAnimator;
@@ -370,7 +378,7 @@ public class TextInputLayout extends LinearLayout {
         }
     }
 
-    private void updateLabelState(boolean animate) {
+    void updateLabelState(boolean animate) {
         final boolean isEnabled = isEnabled();
         final boolean hasText = mEditText != null && !TextUtils.isEmpty(mEditText.getText());
         final boolean isFocused = arrayContains(getDrawableState(), android.R.attr.state_focused);
@@ -557,12 +565,26 @@ public class TextInputLayout extends LinearLayout {
 
             if (enabled) {
                 mErrorView = new TextView(getContext());
+                boolean useDefaultColor = false;
                 try {
-                    mErrorView.setTextAppearance(getContext(), mErrorTextAppearance);
+                    TextViewCompat.setTextAppearance(mErrorView, mErrorTextAppearance);
+
+                    if (Build.VERSION.SDK_INT >= 23
+                            && mErrorView.getTextColors().getDefaultColor() == Color.MAGENTA) {
+                        // Caused by our theme not extending from Theme.Design*. On API 23 and
+                        // above, unresolved theme attrs result in MAGENTA rather than an exception.
+                        // Flag so that we use a decent default
+                        useDefaultColor = true;
+                    }
                 } catch (Exception e) {
+                    // Caused by our theme not extending from Theme.Design*. Flag so that we use
+                    // a decent default
+                    useDefaultColor = true;
+                }
+                if (useDefaultColor) {
                     // Probably caused by our theme not extending from Theme.Design*. Instead
                     // we manually set something appropriate
-                    mErrorView.setTextAppearance(getContext(),
+                    TextViewCompat.setTextAppearance(mErrorView,
                             android.support.v7.appcompat.R.style.TextAppearance_AppCompat_Caption);
                     mErrorView.setTextColor(ContextCompat.getColor(
                             getContext(), R.color.design_textinput_error_color_light));
@@ -685,11 +707,11 @@ public class TextInputLayout extends LinearLayout {
                 mCounterView = new TextView(getContext());
                 mCounterView.setMaxLines(1);
                 try {
-                    mCounterView.setTextAppearance(getContext(), mCounterTextAppearance);
+                    TextViewCompat.setTextAppearance(mCounterView, mCounterTextAppearance);
                 } catch (Exception e) {
                     // Probably caused by our theme not extending from Theme.Design*. Instead
                     // we manually set something appropriate
-                    mCounterView.setTextAppearance(getContext(),
+                    TextViewCompat.setTextAppearance(mCounterView,
                             android.support.v7.appcompat.R.style.TextAppearance_AppCompat_Caption);
                     mCounterView.setTextColor(ContextCompat.getColor(
                             getContext(), R.color.design_textinput_error_color_light));
@@ -767,7 +789,7 @@ public class TextInputLayout extends LinearLayout {
         return mCounterMaxLength;
     }
 
-    private void updateCounter(int length) {
+    void updateCounter(int length) {
         boolean wasCounterOverflowed = mCounterOverflowed;
         if (mCounterMaxLength == INVALID_MAX_LENGTH) {
             mCounterView.setText(String.valueOf(length));
@@ -775,7 +797,7 @@ public class TextInputLayout extends LinearLayout {
         } else {
             mCounterOverflowed = length > mCounterMaxLength;
             if (wasCounterOverflowed != mCounterOverflowed) {
-                mCounterView.setTextAppearance(getContext(), mCounterOverflowed ?
+                TextViewCompat.setTextAppearance(mCounterView, mCounterOverflowed ?
                         mCounterOverflowTextAppearance : mCounterTextAppearance);
             }
             mCounterView.setText(getContext().getString(R.string.character_counter_pattern,
@@ -852,7 +874,7 @@ public class TextInputLayout extends LinearLayout {
                 // as the background. This has the unfortunate side-effect of wiping out any
                 // user set padding, but I'd hope that use of custom padding on an EditText
                 // is limited.
-                mEditText.setBackgroundDrawable(newBg);
+                ViewCompat.setBackground(mEditText, newBg);
                 mHasReconstructedEditTextBackground = true;
             }
         }
@@ -972,6 +994,11 @@ public class TextInputLayout extends LinearLayout {
     }
 
     private void updatePasswordToggleView() {
+        if (mEditText == null) {
+            // If there is no EditText, there is nothing to update
+            return;
+        }
+
         if (shouldShowPasswordIcon()) {
             if (mPasswordToggleView == null) {
                 mPasswordToggleView = (CheckableImageButton) LayoutInflater.from(getContext())
@@ -998,8 +1025,12 @@ public class TextInputLayout extends LinearLayout {
             mPasswordToggleDummyDrawable.setBounds(0, 0, mPasswordToggleView.getMeasuredWidth(), 1);
 
             final Drawable[] compounds = TextViewCompat.getCompoundDrawablesRelative(mEditText);
+            // Store the user defined end compound drawable so that we can restore it later
+            if (compounds[2] != mPasswordToggleDummyDrawable) {
+                mOriginalEditTextEndDrawable = compounds[2];
+            }
             TextViewCompat.setCompoundDrawablesRelative(mEditText, compounds[0], compounds[1],
-                    mPasswordToggleDummyDrawable, compounds[2]);
+                    mPasswordToggleDummyDrawable, compounds[3]);
 
             // Copy over the EditText's padding so that we match
             mPasswordToggleView.setPadding(mEditText.getPaddingLeft(),
@@ -1012,8 +1043,10 @@ public class TextInputLayout extends LinearLayout {
 
             // Make sure that we remove the dummy end compound drawable
             final Drawable[] compounds = TextViewCompat.getCompoundDrawablesRelative(mEditText);
-            TextViewCompat.setCompoundDrawablesRelative(mEditText, compounds[0], compounds[1],
-                    null, compounds[2]);
+            if (compounds[2] == mPasswordToggleDummyDrawable) {
+                TextViewCompat.setCompoundDrawablesRelative(mEditText, compounds[0], compounds[1],
+                        mOriginalEditTextEndDrawable, compounds[3]);
+            }
         }
     }
 
@@ -1132,7 +1165,7 @@ public class TextInputLayout extends LinearLayout {
         if (mPasswordToggleEnabled != enabled) {
             mPasswordToggleEnabled = enabled;
 
-            if (!enabled && mPasswordToggledVisible) {
+            if (!enabled && mPasswordToggledVisible && mEditText != null) {
                 // If the toggle is no longer enabled, but we remove the PasswordTransformation
                 // to make the password visible, add it back
                 mEditText.setTransformationMethod(PasswordTransformationMethod.getInstance());
@@ -1178,7 +1211,7 @@ public class TextInputLayout extends LinearLayout {
         applyPasswordToggleTint();
     }
 
-   private void passwordVisibilityToggleRequested() {
+   void passwordVisibilityToggleRequested() {
        if (mPasswordToggleEnabled) {
            // Store the current cursor position
            final int selection = mEditText.getSelectionEnd();
@@ -1331,6 +1364,9 @@ public class TextInputLayout extends LinearLayout {
     }
 
     private class TextInputAccessibilityDelegate extends AccessibilityDelegateCompat {
+        TextInputAccessibilityDelegate() {
+        }
+
         @Override
         public void onInitializeAccessibilityEvent(View host, AccessibilityEvent event) {
             super.onInitializeAccessibilityEvent(host, event);

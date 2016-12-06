@@ -99,7 +99,7 @@ public class VerticalGridPresenter extends Presenter {
     private OnItemViewSelectedListener mOnItemViewSelectedListener;
     private OnItemViewClickedListener mOnItemViewClickedListener;
     private boolean mRoundedCornersEnabled = true;
-    private ShadowOverlayHelper mShadowOverlayHelper;
+    ShadowOverlayHelper mShadowOverlayHelper;
     private ItemBridgeAdapter.Wrapper mShadowOverlayWrapper;
 
     /**
@@ -180,9 +180,9 @@ public class VerticalGridPresenter extends Presenter {
     }
 
     /**
-     * Returns true if opticalBounds is supported (SDK >= 18) so that default shadow
-     * is applied to each individual child of {@link VerticalGridView}.
-     * Subclass may return false to disable.
+     * Default implementation returns true if SDK version >= 21, shadow (either static or z-order
+     * based) will be applied to each individual child of {@link VerticalGridView}.
+     * Subclass may return false to disable default implementation of shadow and provide its own.
      */
     public boolean isUsingDefaultShadow() {
         return ShadowOverlayHelper.supportsShadow();
@@ -284,7 +284,7 @@ public class VerticalGridPresenter extends Presenter {
         vh.mItemBridgeAdapter.setWrapper(mShadowOverlayWrapper);
         mShadowOverlayHelper.prepareParentForShadow(vh.mGridView);
         vh.getGridView().setFocusDrawingOrderEnabled(mShadowOverlayHelper.getShadowType()
-                == ShadowOverlayHelper.SHADOW_STATIC);
+                != ShadowOverlayHelper.SHADOW_DYNAMIC);
         FocusHighlightHelper.setupBrowseItemFocusHighlight(vh.mItemBridgeAdapter,
                 mFocusZoomFactor, mUseFocusDimmer);
 
@@ -378,7 +378,7 @@ public class VerticalGridPresenter extends Presenter {
         return mOnItemViewClickedListener;
     }
 
-    private void selectChildView(ViewHolder vh, View view) {
+    void selectChildView(ViewHolder vh, View view) {
         if (getOnItemViewSelectedListener() != null) {
             ItemBridgeAdapter.ViewHolder ibh = (view == null) ? null :
                     (ItemBridgeAdapter.ViewHolder) vh.getGridView().getChildViewHolder(view);

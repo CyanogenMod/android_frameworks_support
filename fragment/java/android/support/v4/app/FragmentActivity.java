@@ -29,6 +29,7 @@ import android.os.Parcelable;
 import android.support.annotation.CallSuper;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.annotation.RestrictTo;
 import android.support.v4.media.session.MediaControllerCompat;
 import android.support.v4.util.SimpleArrayMap;
 import android.support.v4.util.SparseArrayCompat;
@@ -43,6 +44,8 @@ import android.view.Window;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
+
+import static android.support.annotation.RestrictTo.Scope.GROUP_ID;
 
 /**
  * Base class for activities that want to use the support-based
@@ -405,11 +408,11 @@ public class FragmentActivity extends BaseFragmentActivityJB implements
         if (super.onMenuItemSelected(featureId, item)) {
             return true;
         }
-        
+
         switch (featureId) {
             case Window.FEATURE_OPTIONS_PANEL:
                 return mFragments.dispatchOptionsItemSelected(item);
-                
+
             case Window.FEATURE_CONTEXT_MENU:
                 return mFragments.dispatchContextItemSelected(item);
 
@@ -430,7 +433,7 @@ public class FragmentActivity extends BaseFragmentActivityJB implements
         }
         super.onPanelClosed(featureId, menu);
     }
-    
+
     /**
      * Dispatch onPause() to fragments.
      */
@@ -527,6 +530,7 @@ public class FragmentActivity extends BaseFragmentActivityJB implements
     /**
      * @hide
      */
+    @RestrictTo(GROUP_ID)
     protected boolean onPrepareOptionsPanel(View view, Menu menu) {
         return super.onPreparePanel(Window.FEATURE_OPTIONS_PANEL, view, menu);
     }
@@ -984,7 +988,7 @@ public class FragmentActivity extends BaseFragmentActivityJB implements
     /**
      * Called by Fragment.requestPermissions() to implement its behavior.
      */
-    private void requestPermissionsFromFragment(Fragment fragment, String[] permissions,
+    void requestPermissionsFromFragment(Fragment fragment, String[] permissions,
             int requestCode) {
         if (requestCode == -1) {
             ActivityCompat.requestPermissions(this, permissions, requestCode);

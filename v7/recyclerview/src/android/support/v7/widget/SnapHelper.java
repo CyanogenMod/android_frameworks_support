@@ -34,19 +34,29 @@ import android.support.v7.widget.RecyclerView.SmoothScroller.ScrollVectorProvide
  */
 public abstract class SnapHelper extends RecyclerView.OnFlingListener {
 
-    private static final float MILLISECONDS_PER_INCH = 100f;
+    static final float MILLISECONDS_PER_INCH = 100f;
 
-    private RecyclerView mRecyclerView;
+    RecyclerView mRecyclerView;
     private Scroller mGravityScroller;
 
     // Handles the snap on scroll case.
     private final RecyclerView.OnScrollListener mScrollListener =
             new RecyclerView.OnScrollListener() {
+                boolean mScrolled = false;
+
                 @Override
                 public void onScrollStateChanged(RecyclerView recyclerView, int newState) {
                     super.onScrollStateChanged(recyclerView, newState);
-                    if (newState == RecyclerView.SCROLL_STATE_IDLE) {
+                    if (newState == RecyclerView.SCROLL_STATE_IDLE && mScrolled) {
+                        mScrolled = false;
                         snapToTargetExistingView();
+                    }
+                }
+
+                @Override
+                public void onScrolled(RecyclerView recyclerView, int dx, int dy) {
+                    if (dx != 0 || dy != 0) {
+                        mScrolled = true;
                     }
                 }
             };
@@ -169,7 +179,7 @@ public abstract class SnapHelper extends RecyclerView.OnFlingListener {
      * method is used to snap the view when the {@link RecyclerView} is first attached; when
      * snapping was triggered by a scroll and when the fling is at its final stages.
      */
-    private void snapToTargetExistingView() {
+    void snapToTargetExistingView() {
         if (mRecyclerView == null) {
             return;
         }

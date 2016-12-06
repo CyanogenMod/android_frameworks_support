@@ -25,6 +25,7 @@ import android.os.Parcelable;
 import android.support.annotation.IntDef;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.annotation.RestrictTo;
 import android.support.annotation.VisibleForTesting;
 import android.support.design.R;
 import android.support.v4.os.ParcelableCompat;
@@ -44,6 +45,7 @@ import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
 
+import static android.support.annotation.RestrictTo.Scope.GROUP_ID;
 import static android.support.design.widget.ViewUtils.objectEquals;
 
 /**
@@ -103,10 +105,10 @@ import static android.support.design.widget.ViewUtils.objectEquals;
 @CoordinatorLayout.DefaultBehavior(AppBarLayout.Behavior.class)
 public class AppBarLayout extends LinearLayout {
 
-    private static final int PENDING_ACTION_NONE = 0x0;
-    private static final int PENDING_ACTION_EXPANDED = 0x1;
-    private static final int PENDING_ACTION_COLLAPSED = 0x2;
-    private static final int PENDING_ACTION_ANIMATE_ENABLED = 0x4;
+    static final int PENDING_ACTION_NONE = 0x0;
+    static final int PENDING_ACTION_EXPANDED = 0x1;
+    static final int PENDING_ACTION_COLLAPSED = 0x2;
+    static final int PENDING_ACTION_ANIMATE_ENABLED = 0x4;
 
     /**
      * Interface definition for a callback to be invoked when an {@link AppBarLayout}'s vertical
@@ -166,7 +168,7 @@ public class AppBarLayout extends LinearLayout {
 
         final TypedArray a = context.obtainStyledAttributes(attrs, R.styleable.AppBarLayout,
                 0, R.style.Widget_Design_AppBarLayout);
-        setBackgroundDrawable(a.getDrawable(R.styleable.AppBarLayout_android_background));
+        ViewCompat.setBackground(this, a.getDrawable(R.styleable.AppBarLayout_android_background));
         if (a.hasValue(R.styleable.AppBarLayout_expanded)) {
             setExpanded(a.getBoolean(R.styleable.AppBarLayout_expanded, false));
         }
@@ -325,7 +327,7 @@ public class AppBarLayout extends LinearLayout {
         return new LayoutParams(p);
     }
 
-    private boolean hasChildWithInterpolator() {
+    boolean hasChildWithInterpolator() {
         return mHaveChildWithInterpolator;
     }
 
@@ -366,21 +368,21 @@ public class AppBarLayout extends LinearLayout {
         return mTotalScrollRange = Math.max(0, range - getTopInset());
     }
 
-    private boolean hasScrollableChildren() {
+    boolean hasScrollableChildren() {
         return getTotalScrollRange() != 0;
     }
 
     /**
      * Return the scroll range when scrolling up from a nested pre-scroll.
      */
-    private int getUpNestedPreScrollRange() {
+    int getUpNestedPreScrollRange() {
         return getTotalScrollRange();
     }
 
     /**
      * Return the scroll range when scrolling down from a nested pre-scroll.
      */
-    private int getDownNestedPreScrollRange() {
+    int getDownNestedPreScrollRange() {
         if (mDownPreScrollRange != INVALID_SCROLL_RANGE) {
             // If we already have a valid value, return it
             return mDownPreScrollRange;
@@ -419,7 +421,7 @@ public class AppBarLayout extends LinearLayout {
     /**
      * Return the scroll range when scrolling down from a nested scroll.
      */
-    private int getDownNestedScrollRange() {
+    int getDownNestedScrollRange() {
         if (mDownScrollRange != INVALID_SCROLL_RANGE) {
             // If we already have a valid value, return it
             return mDownScrollRange;
@@ -454,7 +456,7 @@ public class AppBarLayout extends LinearLayout {
         return mDownScrollRange = Math.max(0, range);
     }
 
-    private void dispatchOffsetUpdates(int offset) {
+    void dispatchOffsetUpdates(int offset) {
         // Iterate backwards through the list so that most recently added listeners
         // get the first chance to decide
         if (mListeners != null) {
@@ -519,7 +521,7 @@ public class AppBarLayout extends LinearLayout {
      *
      * @return true if the collapsed state changed
      */
-    private boolean setCollapsedState(boolean collapsed) {
+    boolean setCollapsedState(boolean collapsed) {
         if (mCollapsed != collapsed) {
             mCollapsed = collapsed;
             refreshDrawableState();
@@ -553,11 +555,11 @@ public class AppBarLayout extends LinearLayout {
         return 0;
     }
 
-    private int getPendingAction() {
+    int getPendingAction() {
         return mPendingAction;
     }
 
-    private void resetPendingAction() {
+    void resetPendingAction() {
         mPendingAction = PENDING_ACTION_NONE;
     }
 
@@ -566,7 +568,7 @@ public class AppBarLayout extends LinearLayout {
         return mLastInsets != null ? mLastInsets.getSystemWindowInsetTop() : 0;
     }
 
-    private WindowInsetsCompat onWindowInsetChanged(final WindowInsetsCompat insets) {
+    WindowInsetsCompat onWindowInsetChanged(final WindowInsetsCompat insets) {
         WindowInsetsCompat newInsets = null;
 
         if (ViewCompat.getFitsSystemWindows(this)) {
@@ -586,6 +588,7 @@ public class AppBarLayout extends LinearLayout {
     public static class LayoutParams extends LinearLayout.LayoutParams {
 
         /** @hide */
+        @RestrictTo(GROUP_ID)
         @IntDef(flag=true, value={
                 SCROLL_FLAG_SCROLL,
                 SCROLL_FLAG_EXIT_UNTIL_COLLAPSED,
@@ -742,7 +745,7 @@ public class AppBarLayout extends LinearLayout {
         /**
          * Returns true if the scroll flags are compatible for 'collapsing'
          */
-        private boolean isCollapsible() {
+        boolean isCollapsible() {
             return (mScrollFlags & SCROLL_FLAG_SCROLL) == SCROLL_FLAG_SCROLL
                     && (mScrollFlags & COLLAPSIBLE_FLAGS) != 0;
         }
@@ -1280,20 +1283,20 @@ public class AppBarLayout extends LinearLayout {
         }
 
         @Override
-        public Parcelable onSaveInstanceState(CoordinatorLayout parent, AppBarLayout appBarLayout) {
-            final Parcelable superState = super.onSaveInstanceState(parent, appBarLayout);
+        public Parcelable onSaveInstanceState(CoordinatorLayout parent, AppBarLayout abl) {
+            final Parcelable superState = super.onSaveInstanceState(parent, abl);
             final int offset = getTopAndBottomOffset();
 
             // Try and find the first visible child...
-            for (int i = 0, count = appBarLayout.getChildCount(); i < count; i++) {
-                View child = appBarLayout.getChildAt(i);
+            for (int i = 0, count = abl.getChildCount(); i < count; i++) {
+                View child = abl.getChildAt(i);
                 final int visBottom = child.getBottom() + offset;
 
                 if (child.getTop() + offset <= 0 && visBottom >= 0) {
                     final SavedState ss = new SavedState(superState);
                     ss.firstVisibleChildIndex = i;
                     ss.firstVisibleChildAtMinimumHeight =
-                            visBottom == ViewCompat.getMinimumHeight(child);
+                            visBottom == (ViewCompat.getMinimumHeight(child) + abl.getTopInset());
                     ss.firstVisibleChildPercentageShown = visBottom / (float) child.getHeight();
                     return ss;
                 }

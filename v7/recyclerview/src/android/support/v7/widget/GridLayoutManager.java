@@ -505,6 +505,27 @@ public class GridLayoutManager extends LinearLayoutManager {
     }
 
     @Override
+    int getItemPrefetchCount() {
+        return mSpanCount;
+    }
+
+    @Override
+    int gatherPrefetchIndicesForLayoutState(RecyclerView.State state, LayoutState layoutState,
+                int[] outIndices) {
+        int remainingSpan = mSpanCount;
+        int count = 0;
+        while (count < mSpanCount && layoutState.hasMore(state) && remainingSpan > 0) {
+            final int pos = layoutState.mCurrentPosition;
+            outIndices[count] = pos;
+            final int spanSize = mSpanSizeLookup.getSpanSize(pos);
+            remainingSpan -= spanSize;
+            layoutState.mCurrentPosition += layoutState.mItemDirection;
+            count++;
+        }
+        return count;
+    }
+
+    @Override
     void layoutChunk(RecyclerView.Recycler recycler, RecyclerView.State state,
             LayoutState layoutState, LayoutChunkResult result) {
         final int otherDirSpecMode = mOrientationHelper.getModeInOther();
@@ -1080,9 +1101,9 @@ public class GridLayoutManager extends LinearLayoutManager {
          */
         public static final int INVALID_SPAN_ID = -1;
 
-        private int mSpanIndex = INVALID_SPAN_ID;
+        int mSpanIndex = INVALID_SPAN_ID;
 
-        private int mSpanSize = 0;
+        int mSpanSize = 0;
 
         public LayoutParams(Context c, AttributeSet attrs) {
             super(c, attrs);

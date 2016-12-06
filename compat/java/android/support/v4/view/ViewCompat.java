@@ -21,12 +21,14 @@ import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.PorterDuff;
 import android.graphics.Rect;
+import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.support.annotation.FloatRange;
 import android.support.annotation.IdRes;
 import android.support.annotation.IntDef;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.annotation.RestrictTo;
 import android.support.v4.os.BuildCompat;
 import android.support.v4.view.accessibility.AccessibilityNodeInfoCompat;
 import android.support.v4.view.accessibility.AccessibilityNodeProviderCompat;
@@ -47,6 +49,8 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.WeakHashMap;
 
+import static android.support.annotation.RestrictTo.Scope.GROUP_ID;
+
 /**
  * Helper for accessing features in {@link View} introduced after API
  * level 4 in a backwards compatible fashion.
@@ -55,22 +59,24 @@ public class ViewCompat {
     private static final String TAG = "ViewCompat";
 
     /** @hide */
+    @RestrictTo(GROUP_ID)
     @IntDef({View.FOCUS_LEFT, View.FOCUS_UP, View.FOCUS_RIGHT, View.FOCUS_DOWN,
             View.FOCUS_FORWARD, View.FOCUS_BACKWARD})
     @Retention(RetentionPolicy.SOURCE)
     public @interface FocusDirection {}
 
     /** @hide */
+    @RestrictTo(GROUP_ID)
     @IntDef({View.FOCUS_LEFT, View.FOCUS_UP, View.FOCUS_RIGHT, View.FOCUS_DOWN})
     @Retention(RetentionPolicy.SOURCE)
     public @interface FocusRealDirection {}
 
     /** @hide */
+    @RestrictTo(GROUP_ID)
     @IntDef({View.FOCUS_FORWARD, View.FOCUS_BACKWARD})
     @Retention(RetentionPolicy.SOURCE)
     public @interface FocusRelativeDirection {}
 
-    /** @hide */
     @IntDef({OVER_SCROLL_ALWAYS, OVER_SCROLL_IF_CONTENT_SCROLLS, OVER_SCROLL_NEVER})
     @Retention(RetentionPolicy.SOURCE)
     private @interface OverScroll {}
@@ -103,7 +109,6 @@ public class ViewCompat {
 
     private static final long FAKE_FRAME_TIME = 10;
 
-    /** @hide */
     @IntDef({
             IMPORTANT_FOR_ACCESSIBILITY_AUTO,
             IMPORTANT_FOR_ACCESSIBILITY_YES,
@@ -134,7 +139,6 @@ public class ViewCompat {
      */
     public static final int IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS = 0x00000004;
 
-    /** @hide */
     @IntDef({
             ACCESSIBILITY_LIVE_REGION_NONE,
             ACCESSIBILITY_LIVE_REGION_POLITE,
@@ -168,7 +172,6 @@ public class ViewCompat {
      */
     public static final int ACCESSIBILITY_LIVE_REGION_ASSERTIVE = 0x00000002;
 
-    /** @hide */
     @IntDef({LAYER_TYPE_NONE, LAYER_TYPE_SOFTWARE, LAYER_TYPE_HARDWARE})
     @Retention(RetentionPolicy.SOURCE)
     private @interface LayerType {}
@@ -221,7 +224,6 @@ public class ViewCompat {
      */
     public static final int LAYER_TYPE_HARDWARE = 2;
 
-    /** @hide */
     @IntDef({
             LAYOUT_DIRECTION_LTR,
             LAYOUT_DIRECTION_RTL,
@@ -230,7 +232,6 @@ public class ViewCompat {
     @Retention(RetentionPolicy.SOURCE)
     private @interface LayoutDirectionMode {}
 
-    /** @hide */
     @IntDef({
             LAYOUT_DIRECTION_LTR,
             LAYOUT_DIRECTION_RTL
@@ -456,6 +457,7 @@ public class ViewCompat {
         void setSaveFromParentEnabled(View view, boolean enabled);
         void setActivated(View view, boolean activated);
         boolean isPaddingRelative(View view);
+        void setBackground(View view, Drawable background);
         ColorStateList getBackgroundTintList(View view);
         void setBackgroundTintList(View view, ColorStateList tintList);
         PorterDuff.Mode getBackgroundTintMode(View view);
@@ -976,6 +978,11 @@ public class ViewCompat {
         }
 
         @Override
+        public void setBackground(View view, Drawable background) {
+            view.setBackgroundDrawable(background);
+        }
+
+        @Override
         public ColorStateList getBackgroundTintList(View view) {
             return ViewCompatBase.getBackgroundTintList(view);
         }
@@ -1492,6 +1499,11 @@ public class ViewCompat {
         @Override
         public boolean hasOverlappingRendering(View view) {
             return ViewCompatJB.hasOverlappingRendering(view);
+        }
+
+        @Override
+        public void setBackground(View view, Drawable background) {
+            ViewCompatJB.setBackground(view, background);
         }
     }
 
@@ -3091,6 +3103,16 @@ public class ViewCompat {
      */
     public static boolean isPaddingRelative(View view) {
         return IMPL.isPaddingRelative(view);
+    }
+
+    /**
+     * Set the background of the {@code view} to a given Drawable, or remove the background. If the
+     * background has padding, {@code view}'s padding is set to the background's padding. However,
+     * when a background is removed, this View's padding isn't touched. If setting the padding is
+     * desired, please use{@code setPadding(int, int, int, int)}.
+     */
+    public static void setBackground(View view, Drawable background) {
+        IMPL.setBackground(view, background);
     }
 
     /**

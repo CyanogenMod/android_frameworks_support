@@ -23,6 +23,7 @@ import android.support.annotation.ColorInt;
 import android.support.annotation.ColorRes;
 import android.support.annotation.Nullable;
 import android.support.annotation.VisibleForTesting;
+import android.support.v4.content.ContextCompat;
 import android.support.v4.view.MotionEventCompat;
 import android.support.v4.view.NestedScrollingChild;
 import android.support.v4.view.NestedScrollingChildHelper;
@@ -102,8 +103,8 @@ public class SwipeRefreshLayout extends ViewGroup implements NestedScrollingPare
     private static final int DEFAULT_CIRCLE_TARGET = 64;
 
     private View mTarget; // the target of the gesture
-    private OnRefreshListener mListener;
-    private boolean mRefreshing = false;
+    OnRefreshListener mListener;
+    boolean mRefreshing = false;
     private int mTouchSlop;
     private float mTotalDragDistance = -1;
 
@@ -118,14 +119,14 @@ public class SwipeRefreshLayout extends ViewGroup implements NestedScrollingPare
     private boolean mNestedScrollInProgress;
 
     private int mMediumAnimationDuration;
-    private int mCurrentTargetOffsetTop;
+    int mCurrentTargetOffsetTop;
 
     private float mInitialMotionY;
     private float mInitialDownY;
     private boolean mIsBeingDragged;
     private int mActivePointerId = INVALID_POINTER;
     // Whether this item is scaled up rather than clipped
-    private boolean mScale;
+    boolean mScale;
 
     // Target is returning to its start offset because it was cancelled or a
     // refresh was triggered.
@@ -135,16 +136,18 @@ public class SwipeRefreshLayout extends ViewGroup implements NestedScrollingPare
         android.R.attr.enabled
     };
 
-    private CircleImageView mCircleView;
+    CircleImageView mCircleView;
     private int mCircleViewIndex = -1;
 
     protected int mFrom;
 
-    private float mStartingScale;
+    float mStartingScale;
 
     protected int mOriginalOffsetTop;
 
-    private MaterialProgressDrawable mProgress;
+    int mSpinnerOffsetEnd;
+
+    MaterialProgressDrawable mProgress;
 
     private Animation mScaleAnimation;
 
@@ -156,14 +159,12 @@ public class SwipeRefreshLayout extends ViewGroup implements NestedScrollingPare
 
     private Animation mScaleDownToStartAnimation;
 
-    private float mSpinnerFinalOffset;
-
-    private boolean mNotify;
+    boolean mNotify;
 
     private int mCircleDiameter;
 
     // Whether the client has set a custom starting position;
-    private boolean mUsingCustomStart;
+    boolean mUsingCustomStart;
 
     private OnChildScrollUpCallback mChildScrollUpCallback;
 
@@ -194,7 +195,7 @@ public class SwipeRefreshLayout extends ViewGroup implements NestedScrollingPare
         }
     };
 
-    private void reset() {
+    void reset() {
         mCircleView.clearAnimation();
         mProgress.stop();
         mCircleView.setVisibility(View.GONE);
@@ -250,10 +251,26 @@ public class SwipeRefreshLayout extends ViewGroup implements NestedScrollingPare
     public void setProgressViewOffset(boolean scale, int start, int end) {
         mScale = scale;
         mOriginalOffsetTop = start;
-        mSpinnerFinalOffset = end;
+        mSpinnerOffsetEnd = end;
         mUsingCustomStart = true;
         reset();
         mRefreshing = false;
+    }
+
+    /**
+     * @return The offset in pixels from the top of this view at which the progress spinner should
+     *         appear.
+     */
+    public int getProgressViewStartOffset() {
+        return mOriginalOffsetTop;
+    }
+
+    /**
+     * @return The offset in pixels from the top of this view at which the progress spinner should
+     *         come to rest after a successful swipe gesture.
+     */
+    public int getProgressViewEndOffset() {
+        return mSpinnerOffsetEnd;
     }
 
     /**
@@ -270,7 +287,7 @@ public class SwipeRefreshLayout extends ViewGroup implements NestedScrollingPare
      *            gesture.
      */
     public void setProgressViewEndTarget(boolean scale, int end) {
-        mSpinnerFinalOffset = end;
+        mSpinnerOffsetEnd = end;
         mScale = scale;
         mCircleView.invalidate();
     }
@@ -322,18 +339,14 @@ public class SwipeRefreshLayout extends ViewGroup implements NestedScrollingPare
         setWillNotDraw(false);
         mDecelerateInterpolator = new DecelerateInterpolator(DECELERATE_INTERPOLATION_FACTOR);
 
-        final TypedArray a = context.obtainStyledAttributes(attrs, LAYOUT_ATTRS);
-        setEnabled(a.getBoolean(0, true));
-        a.recycle();
-
         final DisplayMetrics metrics = getResources().getDisplayMetrics();
         mCircleDiameter = (int) (CIRCLE_DIAMETER * metrics.density);
 
         createProgressView();
         ViewCompat.setChildrenDrawingOrderEnabled(this, true);
         // the absolute offset has to take into account that the circle starts at an offset
-        mSpinnerFinalOffset = DEFAULT_CIRCLE_TARGET * metrics.density;
-        mTotalDragDistance = mSpinnerFinalOffset;
+        mSpinnerOffsetEnd = (int) (DEFAULT_CIRCLE_TARGET * metrics.density);
+        mTotalDragDistance = mSpinnerOffsetEnd;
         mNestedScrollingParentHelper = new NestedScrollingParentHelper(this);
 
         mNestedScrollingChildHelper = new NestedScrollingChildHelper(this);
@@ -341,6 +354,10 @@ public class SwipeRefreshLayout extends ViewGroup implements NestedScrollingPare
 
         mOriginalOffsetTop = mCurrentTargetOffsetTop = -mCircleDiameter;
         moveToStart(1.0f);
+
+        final TypedArray a = context.obtainStyledAttributes(attrs, LAYOUT_ATTRS);
+        setEnabled(a.getBoolean(0, true));
+        a.recycle();
     }
 
     @Override
@@ -395,9 +412,9 @@ public class SwipeRefreshLayout extends ViewGroup implements NestedScrollingPare
             mRefreshing = refreshing;
             int endTarget = 0;
             if (!mUsingCustomStart) {
-                endTarget = (int) (mSpinnerFinalOffset + mOriginalOffsetTop);
+                endTarget = mSpinnerOffsetEnd + mOriginalOffsetTop;
             } else {
-                endTarget = (int) mSpinnerFinalOffset;
+                endTarget = mSpinnerOffsetEnd;
             }
             setTargetOffsetTopAndBottom(endTarget - mCurrentTargetOffsetTop,
                     true /* requires update */);
@@ -434,7 +451,7 @@ public class SwipeRefreshLayout extends ViewGroup implements NestedScrollingPare
      * Pre API 11, this does an alpha animation.
      * @param progress
      */
-    private void setAnimationProgress(float progress) {
+    void setAnimationProgress(float progress) {
         if (isAlphaUsedForScale()) {
             setColorViewAlpha((int) (progress * MAX_ALPHA));
         } else {
@@ -456,7 +473,7 @@ public class SwipeRefreshLayout extends ViewGroup implements NestedScrollingPare
         }
     }
 
-    private void startScaleDownAnimation(Animation.AnimationListener listener) {
+    void startScaleDownAnimation(Animation.AnimationListener listener) {
         mScaleDownAnimation = new Animation() {
             @Override
             public void applyTransformation(float interpolatedTime, Transformation t) {
@@ -512,7 +529,7 @@ public class SwipeRefreshLayout extends ViewGroup implements NestedScrollingPare
      * @param colorRes Resource id of the color.
      */
     public void setProgressBackgroundColorSchemeResource(@ColorRes int colorRes) {
-        setProgressBackgroundColorSchemeColor(getResources().getColor(colorRes));
+        setProgressBackgroundColorSchemeColor(ContextCompat.getColor(getContext(), colorRes));
     }
 
     /**
@@ -541,10 +558,10 @@ public class SwipeRefreshLayout extends ViewGroup implements NestedScrollingPare
      * @param colorResIds
      */
     public void setColorSchemeResources(@ColorRes int... colorResIds) {
-        final Resources res = getResources();
+        final Context context = getContext();
         int[] colorRes = new int[colorResIds.length];
         for (int i = 0; i < colorResIds.length; i++) {
-            colorRes[i] = res.getColor(colorResIds[i]);
+            colorRes[i] = ContextCompat.getColor(context, colorResIds[i]);
         }
         setColorSchemeColors(colorRes);
     }
@@ -915,8 +932,8 @@ public class SwipeRefreshLayout extends ViewGroup implements NestedScrollingPare
         float dragPercent = Math.min(1f, Math.abs(originalDragPercent));
         float adjustedPercent = (float) Math.max(dragPercent - .4, 0) * 5 / 3;
         float extraOS = Math.abs(overscrollTop) - mTotalDragDistance;
-        float slingshotDist = mUsingCustomStart ? mSpinnerFinalOffset - mOriginalOffsetTop
-                : mSpinnerFinalOffset;
+        float slingshotDist = mUsingCustomStart ? mSpinnerOffsetEnd - mOriginalOffsetTop
+                : mSpinnerOffsetEnd;
         float tensionSlingshotPercent = Math.max(0, Math.min(extraOS, slingshotDist * 2)
                 / slingshotDist);
         float tensionPercent = (float) ((tensionSlingshotPercent / 4) - Math.pow(
@@ -1113,9 +1130,9 @@ public class SwipeRefreshLayout extends ViewGroup implements NestedScrollingPare
             int targetTop = 0;
             int endTarget = 0;
             if (!mUsingCustomStart) {
-                endTarget = (int) (mSpinnerFinalOffset - Math.abs(mOriginalOffsetTop));
+                endTarget = mSpinnerOffsetEnd - Math.abs(mOriginalOffsetTop);
             } else {
-                endTarget = (int) mSpinnerFinalOffset;
+                endTarget = mSpinnerOffsetEnd;
             }
             targetTop = (mFrom + (int) ((endTarget - mFrom) * interpolatedTime));
             int offset = targetTop - mCircleView.getTop();
@@ -1124,7 +1141,7 @@ public class SwipeRefreshLayout extends ViewGroup implements NestedScrollingPare
         }
     };
 
-    private void moveToStart(float interpolatedTime) {
+    void moveToStart(float interpolatedTime) {
         int targetTop = 0;
         targetTop = (mFrom + (int) ((mOriginalOffsetTop - mFrom) * interpolatedTime));
         int offset = targetTop - mCircleView.getTop();
@@ -1162,7 +1179,7 @@ public class SwipeRefreshLayout extends ViewGroup implements NestedScrollingPare
         mCircleView.startAnimation(mScaleDownToStartAnimation);
     }
 
-    private void setTargetOffsetTopAndBottom(int offset, boolean requiresUpdate) {
+    void setTargetOffsetTopAndBottom(int offset, boolean requiresUpdate) {
         mCircleView.bringToFront();
         ViewCompat.offsetTopAndBottom(mCircleView, offset);
         mCurrentTargetOffsetTop = mCircleView.getTop();

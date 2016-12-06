@@ -16,6 +16,7 @@
 
 package android.support.v7.widget;
 
+import static android.support.annotation.RestrictTo.Scope.GROUP_ID;
 import static android.support.v4.graphics.ColorUtils.compositeColors;
 import static android.support.v7.content.res.AppCompatResources.getColorStateList;
 import static android.support.v7.widget.ThemeUtils.getDisabledThemeAttrColor;
@@ -36,6 +37,7 @@ import android.support.annotation.ColorInt;
 import android.support.annotation.DrawableRes;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.annotation.RestrictTo;
 import android.support.graphics.drawable.AnimatedVectorDrawableCompat;
 import android.support.graphics.drawable.VectorDrawableCompat;
 import android.support.v4.content.ContextCompat;
@@ -59,6 +61,7 @@ import java.util.WeakHashMap;
 /**
  * @hide
  */
+@RestrictTo(GROUP_ID)
 public final class AppCompatDrawableManager {
 
     private interface InflateDelegate {
@@ -85,11 +88,11 @@ public final class AppCompatDrawableManager {
 
     private static void installDefaultInflateDelegates(@NonNull AppCompatDrawableManager manager) {
         final int sdk = Build.VERSION.SDK_INT;
-        if (sdk < 23) {
-            // We only want to use the automatic VectorDrawableCompat handling where it's
-            // needed: on devices running before Lollipop
+        // This sdk version check will affect src:appCompat code path.
+        // Although VectorDrawable exists in Android framework from Lollipop, AppCompat will use the
+        // VectorDrawableCompat before Nougat to utilize the bug fixes in VectorDrawableCompat.
+        if (sdk < 24) {
             manager.addDelegate("vector", new VdcInflateDelegate());
-
             if (sdk >= 11) {
                 // AnimatedVectorDrawableCompat only works on API v11+
                 manager.addDelegate("animated-vector", new AvdcInflateDelegate());
@@ -132,9 +135,12 @@ public final class AppCompatDrawableManager {
             R.drawable.abc_textfield_search_activated_mtrl_alpha,
             R.drawable.abc_cab_background_top_mtrl_alpha,
             R.drawable.abc_text_cursor_material,
-            R.drawable.abc_text_select_handle_left_mtrl_alpha,
-            R.drawable.abc_text_select_handle_middle_mtrl_alpha,
-            R.drawable.abc_text_select_handle_right_mtrl_alpha
+            R.drawable.abc_text_select_handle_left_mtrl_dark,
+            R.drawable.abc_text_select_handle_middle_mtrl_dark,
+            R.drawable.abc_text_select_handle_right_mtrl_dark,
+            R.drawable.abc_text_select_handle_left_mtrl_light,
+            R.drawable.abc_text_select_handle_middle_mtrl_light,
+            R.drawable.abc_text_select_handle_right_mtrl_light
     };
 
     /**
@@ -728,6 +734,9 @@ public final class AppCompatDrawableManager {
     }
 
     private static class VdcInflateDelegate implements InflateDelegate {
+        VdcInflateDelegate() {
+        }
+
         @Override
         public Drawable createFromXmlInner(@NonNull Context context, @NonNull XmlPullParser parser,
                 @NonNull AttributeSet attrs, @Nullable Resources.Theme theme) {
@@ -742,6 +751,9 @@ public final class AppCompatDrawableManager {
     }
 
     private static class AvdcInflateDelegate implements InflateDelegate {
+        AvdcInflateDelegate() {
+        }
+
         @Override
         public Drawable createFromXmlInner(@NonNull Context context, @NonNull XmlPullParser parser,
                 @NonNull AttributeSet attrs, @Nullable Resources.Theme theme) {
